@@ -28,7 +28,11 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct {
+	GPIO_TypeDef* GPIO_puerto;
+	uint16_t GPIO_pin;
+	uint32_t delay;
+}Led_Param_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -44,11 +48,15 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+Led_Param_t param_Led1 = {GPIOD, GPIO_PIN_12, 500};
+Led_Param_t param_Led2 = {GPIOD, GPIO_PIN_13, 0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+
+void vTareaParpadeo(void * pvParameters);
+void vPollingButton(void * pvParameters);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -91,6 +99,8 @@ int main(void)
 
 
 
+
+
   /* Start scheduler */
   vTaskStartScheduler();
 
@@ -98,6 +108,8 @@ int main(void)
 
   /* Init scheduler */
 
+
+  /* Start scheduler */
 
   /* We should never get here as control is now taken by the scheduler */
 
@@ -154,6 +166,34 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void vTareaParpadeo(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+
+	while(1){
+
+		HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+
+		HAL_Delay(pxParam->delay);
+	}
+
+}
+
+void vPollingButton(void * pvParameters){
+	GPIO_PinState status_button;
+	GPIO_PinState status_led;
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+
+	while(1){
+		status_button = HAL_GPIO_ReadPin(GPIOA, 0);
+		status_led = HAL_GPIO_ReadPin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+
+		if(status_button && !status_led){
+			HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+		}
+
+		vTaskDelay(pdMS_TO_TICKS(10));
+	}
+}
 
 /* USER CODE END 4 */
 
