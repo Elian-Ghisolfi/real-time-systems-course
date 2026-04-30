@@ -1,6 +1,7 @@
-../Core/Src/main.c:73:5:main	1
-../Core/Src/main.c:131:6:SystemClock_Config	3
-../Core/Src/main.c:169:6:vTareaParpadeo	1
-../Core/Src/main.c:181:6:vPollingButton	2
-../Core/Src/main.c:208:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:226:6:Error_Handler	1
+../Core/Src/main.c:75:5:main	1
+../Core/Src/main.c:132:6:SystemClock_Config	3
+../Core/Src/main.c:170:6:vTareaParpadeo_Delay	1
+../Core/Src/main.c:183:6:vTareaParpadeo_DelayUntil	1
+../Core/Src/main.c:199:6:vPollingButton	2
+../Core/Src/main.c:226:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:244:6:Error_Handler	1

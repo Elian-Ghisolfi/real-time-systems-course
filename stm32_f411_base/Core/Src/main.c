@@ -30,8 +30,8 @@
 /* USER CODE BEGIN PTD */
 typedef struct {
 	GPIO_TypeDef* GPIO_puerto;
-	uint16_t GPIO_pin;
-	uint32_t delay;
+	uint16_t      GPIO_pin;
+	uint32_t      delay;
 }Led_Param_t;
 /* USER CODE END PTD */
 
@@ -48,14 +48,16 @@ typedef struct {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-Led_Param_t param_Led1 = {GPIOD, GPIO_PIN_12, 500};
-Led_Param_t param_Led2 = {GPIOD, GPIO_PIN_13, 0};
+Led_Param_t Led1_delay = {GPIOD, GPIO_PIN_12, 400};
+Led_Param_t Led2_delay = {GPIOD, GPIO_PIN_13, 500};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 
-void vTareaParpadeo(void * pvParameters);
+void vTareaParpadeo_Delay(void * pvParameters);
+void vTareaParpadeo_DelayUntil(void * pvParameters);
+
 void vPollingButton(void * pvParameters);
 /* USER CODE BEGIN PFP */
 
@@ -97,9 +99,8 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
-  xTaskCreate(vTareaParpadeo, "Tarea_Led1", 100, (void *) &param_Led1, 0, NULL);
-  xTaskCreate(vPollingButton, "Polling_Button_Led2", 100, (void *) &param_Led2, 1, NULL);
-
+  xTaskCreate(vTareaParpadeo_Delay, "Tarea_Led1", 100, (void *) &Led1_delay, 0, NULL);
+  xTaskCreate(vTareaParpadeo_DelayUntil, "Tarea_Led2", 100, (void *) &Led2_delay, 0, NULL);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -166,17 +167,34 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void vTareaParpadeo(void * pvParameters){
+void vTareaParpadeo_Delay(void * pvParameters){
 	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
 
 	while(1){
 
 		HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
 
-		HAL_Delay(pxParam->delay);
-	}
+		HAL_Delay(100);
 
+		vTaskDelay(pxParam->delay);
+	}
 }
+
+void vTareaParpadeo_DelayUntil(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+
+	TickType_t xLastWakeTime = xTaskGetTickCount();
+
+	while(1){
+
+		HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+
+		HAL_Delay(100);
+
+		vTaskDelayUntil(&xLastWakeTime, pxParam->delay);
+	}
+}
+
 
 void vPollingButton(void * pvParameters){
 	GPIO_PinState status_button;
