@@ -48,8 +48,8 @@ typedef struct {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-Led_Param_t Led1_delay = {GPIOD, GPIO_PIN_12, 400};
-Led_Param_t Led2_delay = {GPIOD, GPIO_PIN_13, 500};
+Led_Param_t LedA_delay = {GPIOD, GPIO_PIN_14, 300};
+Led_Param_t LedB_delay = {GPIOD, GPIO_PIN_15, 300};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,13 +58,14 @@ void SystemClock_Config(void);
 void vTareaParpadeo_Delay(void * pvParameters);
 void vTareaParpadeo_DelayUntil(void * pvParameters);
 
-void vPollingButton(void * pvParameters);
+void vPollingButton_Priority(void * pvParameters);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+TaskHandle_t xTarea_LedA_handle = NULL;
 
 /* USER CODE END 0 */
 
@@ -99,8 +100,9 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
-  xTaskCreate(vTareaParpadeo_Delay, "Tarea_Led1", 100, (void *) &Led1_delay, 0, NULL);
-  xTaskCreate(vTareaParpadeo_DelayUntil, "Tarea_Led2", 100, (void *) &Led2_delay, 0, NULL);
+  xTaskCreate(vTareaParpadeo_Delay, "Tarea_LedA", 100, (void *) &LedA_delay, 1, &xTarea_LedA_handle);
+  xTaskCreate(vTareaParpadeo_Delay, "Tarea_LedB", 100, (void *) &LedB_delay, 1, NULL);
+  xTaskCreate(vPollingButton_Priority, "Button_change", 100, NULL, configMAX_PRIORITIES - 1, NULL);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -174,40 +176,42 @@ void vTareaParpadeo_Delay(void * pvParameters){
 
 		HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
 
-		HAL_Delay(100);
+		HAL_Delay(pxParam->delay);
 
-		vTaskDelay(pxParam->delay);
 	}
 }
 
 void vTareaParpadeo_DelayUntil(void * pvParameters){
 	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
 
-	TickType_t xLastWakeTime = xTaskGetTickCount();
-
 	while(1){
 
 		HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
 
 		HAL_Delay(100);
-
-		vTaskDelayUntil(&xLastWakeTime, pxParam->delay);
 	}
 }
 
 
-void vPollingButton(void * pvParameters){
+void vPollingButton_Priority(void * pvParameters){
 	GPIO_PinState status_button;
-	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
 
 	while(1){
 		status_button = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
 
 		if(status_button == GPIO_PIN_SET){
-			HAL_GPIO_WritePin(pxParam->GPIO_puerto, pxParam->GPIO_pin, GPIO_PIN_SET);
-		}else{
-			HAL_GPIO_WritePin(pxParam->GPIO_puerto, pxParam->GPIO_pin, GPIO_PIN_RESET);
+
+			TickType_t xLastWakeTime = xTaskGetTickCount();
+
+			UBaseType_t priority =  uxTaskPriorityGet(xTarea_LedA_handle) + 1;
+			vTaskPrioritySet(xTarea_LedA_handle, priority);
+
+			vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(3000));
+
+			// Deberiamos tener un condicion if tal que priority > 0 siempre en este punto
+			vTaskPrioritySet(xTarea_LedA_handle, priority - 1);
 		}
+
 
 		vTaskDelay(pdMS_TO_TICKS(10));
 	}
