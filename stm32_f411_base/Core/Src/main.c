@@ -97,8 +97,8 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
-
-
+  xTaskCreate(vTareaParpadeo, "Tarea_Led1", 100, (void *) &param_Led1, 0, NULL);
+  xTaskCreate(vPollingButton, "Polling_Button_Led2", 100, (void *) &param_Led2, 1, NULL);
 
 
   /* Start scheduler */
@@ -180,15 +180,15 @@ void vTareaParpadeo(void * pvParameters){
 
 void vPollingButton(void * pvParameters){
 	GPIO_PinState status_button;
-	GPIO_PinState status_led;
 	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
 
 	while(1){
-		status_button = HAL_GPIO_ReadPin(GPIOA, 0);
-		status_led = HAL_GPIO_ReadPin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+		status_button = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
 
-		if(status_button && !status_led){
-			HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+		if(status_button == GPIO_PIN_SET){
+			HAL_GPIO_WritePin(pxParam->GPIO_puerto, pxParam->GPIO_pin, GPIO_PIN_SET);
+		}else{
+			HAL_GPIO_WritePin(pxParam->GPIO_puerto, pxParam->GPIO_pin, GPIO_PIN_RESET);
 		}
 
 		vTaskDelay(pdMS_TO_TICKS(10));
