@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "FreeRTOS.h"
 #include "task.h"
+#include "semphr.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,16 +49,16 @@ typedef struct {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-Led_Param_t param_Led1 = {GPIOD, GPIO_PIN_12, 200};
-Led_Param_t param_Led2 = {GPIOD, GPIO_PIN_13, 400};
-Led_Param_t param_Led3 = {GPIOD, GPIO_PIN_14, 600};
-Led_Param_t param_Led4 = {GPIOD, GPIO_PIN_15, 800};
+Led_Param_t param_Led3 = {GPIOD, GPIO_PIN_14, 50};
+Led_Param_t param_Led4 = {GPIOD, GPIO_PIN_15, 0}; // Para la tarea minima de scheduler
+
+SemaphoreHandle_t semaphored_button = NULL;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 
-void vTareaParpadeo(void * pvParameters);
+void vBlinkyLed_Deferred(void * pvParameters);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -97,10 +98,14 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
-  xTaskCreate(vTareaParpadeo, "Tarea 1", 100, (void *) &param_Led1, 0, NULL);
-  xTaskCreate(vTareaParpadeo, "Tarea 2", 100, (void *) &param_Led2, 0, NULL);
-  xTaskCreate(vTareaParpadeo, "Tarea 3", 100, (void *) &param_Led3, 0, NULL);
-  xTaskCreate(vTareaParpadeo, "Tarea 4", 100, (void *) &param_Led4, 0, NULL);
+
+  semaphored_button = xSemaphoreCreateBinary();
+
+  if(semaphored_button != NULL){
+
+	  xTaskCreate(vBlinkyLed_Deferred, "Led_Diferido", 100, &param_Led3, 0, NULL);
+
+  }
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -165,18 +170,40 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void vTareaParpadeo(void * pvParameters){
+void vBlinkyLed_Deferred(void * pvParameters){
 	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
 
 	while(1){
 
-		HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+		if(xSemaphoreTake(semaphored_button, portMAX_DELAY) == pdPASS){
 
-		vTaskDelay(pdMS_TO_TICKS(pxParam->delay));
+			HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+
+		}
+		// vTaskDelay(pdMS_TO_TICKS(pxParam->delay));
+	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+
+	if(GPIO_Pin == GPIO_PIN_0){
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+		xSemaphoreGiveFromISR(semaphored_button, &xHigherPriorityTaskWoken);
+
+		/* 5. Si xHigherPriorityTaskWoken se puso en pdTRUE, forzamos un cambio de contexto
+		* para que al salir de la interrupción entremos directo a la tarea del botón. */
+		//portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 	}
 
 }
 
+void vApplicationIdleHook(void)
+{
+    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15); // LED4
+
+    HAL_Delay(200);
+}
 
 /* USER CODE END 4 */
 
