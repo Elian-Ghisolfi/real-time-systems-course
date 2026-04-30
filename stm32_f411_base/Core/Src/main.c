@@ -28,7 +28,11 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct {
+	GPIO_TypeDef* GPIO_puerto;
+	uint16_t GPIO_pin;
+	uint32_t delay;
+}Led_Param_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -44,11 +48,16 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+Led_Param_t param_Led1 = {GPIOD, GPIO_PIN_12, 200};
+Led_Param_t param_Led2 = {GPIOD, GPIO_PIN_13, 400};
+Led_Param_t param_Led3 = {GPIOD, GPIO_PIN_14, 600};
+Led_Param_t param_Led4 = {GPIOD, GPIO_PIN_15, 800};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+
+void vTareaParpadeo(void * pvParameters);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -88,8 +97,10 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
-
-
+  xTaskCreate(vTareaParpadeo, "Tarea 1", 100, (void *) &param_Led1, 0, NULL);
+  xTaskCreate(vTareaParpadeo, "Tarea 2", 100, (void *) &param_Led2, 0, NULL);
+  xTaskCreate(vTareaParpadeo, "Tarea 3", 100, (void *) &param_Led3, 0, NULL);
+  xTaskCreate(vTareaParpadeo, "Tarea 4", 100, (void *) &param_Led4, 0, NULL);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -154,6 +165,18 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void vTareaParpadeo(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+
+	while(1){
+
+		HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+
+		vTaskDelay(pdMS_TO_TICKS(pxParam->delay));
+	}
+
+}
+
 
 /* USER CODE END 4 */
 
