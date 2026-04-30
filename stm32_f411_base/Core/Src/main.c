@@ -50,7 +50,10 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+void vTaskLed1(void * pvParameters);
+void vTaskLed2(void * pvParameters);
+void vTaskLed3(void * pvParameters);
+void vTaskLed4(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -88,8 +91,10 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
-
-
+  xTaskCreate(vTaskLed1, "Task1", 100, NULL, 0, NULL);
+  xTaskCreate(vTaskLed2, "Task2", 100, NULL, 0, NULL);
+  xTaskCreate(vTaskLed3, "Task3", 100, NULL, 0, NULL);
+  xTaskCreate(vTaskLed4, "Task4", 100, NULL, 0, NULL);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -154,7 +159,42 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void vTaskLed1(void * pvParameters){
+	uint32_t Delay = 200;
 
+	while(1){
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12); // Green
+
+		HAL_Delay(Delay);
+	}
+}
+void vTaskLed2(void * pvParameters){
+	uint32_t Delay = 400;
+
+	while(1){
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13); // Orange
+
+		HAL_Delay(Delay);
+	}
+}
+void vTaskLed3(void * pvParameters){
+	uint32_t Delay = 600;
+
+	while(1){
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14); // Red
+
+		HAL_Delay(Delay);
+	}
+}
+void vTaskLed4(void * pvParameters){
+	uint32_t Delay = 800;
+
+	while(1){
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15); // Blue
+
+		HAL_Delay(Delay);
+	}
+}
 /* USER CODE END 4 */
 
 /**
