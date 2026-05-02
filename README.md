@@ -38,4 +38,36 @@ En cada una declaramos el valor de delay necesario cuando podriamos haberlo pasa
 Este programa utiliza el servicio `HAL_Delay()` que es una funcion que simula un loop requiriendo tiempo de procesamiento del micro hasta que termine el mismo.
 Lo que vemos como resultado de tener las 4  tareas creadas con la misma prioridad y tratando de correr generando una sensacion de concurrencia pero esto es producto de la configuracion de nuestro micro precisamente al Time Slicing: Si hay dos tareas de la misma prioridad listas, el scheduler alternará entre ellas en cada iteración del Tick Interrupt (Round Robin).
 
-Los tiempos que vemos no son precisos ya que al tener todas la misma prioridad el micro le da una porcion de procesamiento a cada una y ninguna termina su loop al tiempo que determinamos. 
+Los tiempos que vemos no son precisos ya que al tener todas la misma prioridad el micro le da una porcion de procesamiento a cada una y ninguna termina su loop al tiempo que determinamos.
+
+## Desafio 2
+
+**Preguntas:** Que diferencias hay en las transiciones de tareas respecto al caso del Desafio 1? (De ser posible medir con fines comparativos utilizando los mismos periodos de conmutacion del caso anterior).
+
+### Analisis:
+
+Para este desafio empezamos a parametrizar las configuraciones y los parametros de los LEDS (en el futuro seran otros perifericos) y empezamos a definir tareas mas generales para solo tener instancias de la misma
+
+```
+ESTRUCTURA DE PARAMETROS DE LOS LEDS
+typedef struct {
+	GPIO_TypeDef* GPIO_puerto;
+	uint16_t GPIO_pin;
+	uint32_t delay;
+}Led_Param_t;
+
+TAREA PARAMETRIZADA
+void vTareaParpadeo(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+
+	while(1){
+
+		HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
+
+		vTaskDelay(pdMS_TO_TICKS(pxParam->delay));
+	}
+
+}
+```
+En el Desafío 1 las tareas pasaban únicamente de Ready a Running consumiendo el 100% de la CPU y desperdiciando recursos. 
+Mietras que en el Desafío 2: Las tareas ahora transicionan entre Running, Blocked y Ready. Tardan apenas unos microsegundos en hacer el Toggle del pin y calcular el nuevo vTaskDelay, cediendo inmediatamente la CPU. Ahora, durante el 99.9% del tiempo, las 4 tareas están en estado Blocked. ¿Quién usa la CPU? La Idle Task (prioridad 0), la cual puede aprovecharse para poner el microcontrolador en modo "Sleep" y ahorrar energía.
