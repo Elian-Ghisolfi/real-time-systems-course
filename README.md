@@ -1,15 +1,15 @@
 # real-time-systems-course
 practical exercises and projects of the real-time systems course
 
-## Desafio 1
+## Desafío 1
 
-**Preguntas**: Todas las tareas se ejecutan? Hay concurrencia entre tareas? Porque?. Los
+**Preguntas**: ¿Todas las tareas se ejecutan? ¿Hay concurrencia entre tareas? ¿Por qué?. ¿Los
 tiempos de conmutación de los leds son precisos? (Medirlos de ser posible utilizando
-periodos de conmutacion mas pequños: 20ms, 40ms, 60ms y 80ms)
+periodos de conmutación más pequeños: 20ms, 40ms, 60ms y 80ms)
 
-### Analisis: 
+### Análisis: 
 
-Para este desafio realizamos 4 prototipos de tareas para dejar en claro una *Mala practica* y no utilizar la posibilidad de pasarle parametros a las mismas.
+Para este desafío realizamos 4 prototipos de tareas para dejar en claro una *Mala práctica* y no utilizar la posibilidad de pasarle parámetros a las mismas.
 
 ```
 void vTaskLed1(void * pvParameters);
@@ -34,19 +34,19 @@ int main(){
     xTaskCreate(vTaskLed4, "Task4", 100, NULL, 0, NULL);
 }
 ```
-En cada una declaramos el valor de delay necesario cuando podriamos haberlo pasado por parametro.
-Este programa utiliza el servicio `HAL_Delay()` que es una funcion que simula un loop requiriendo tiempo de procesamiento del micro hasta que termine el mismo.
-Lo que vemos como resultado de tener las 4  tareas creadas con la misma prioridad y tratando de correr generando una sensacion de concurrencia pero esto es producto de la configuracion de nuestro micro precisamente al Time Slicing: Si hay dos tareas de la misma prioridad listas, el scheduler alternará entre ellas en cada iteración del Tick Interrupt (Round Robin).
+En cada una declaramos el valor de delay necesario cuando podríamos haberlo pasado por parámetro.
+Este programa utiliza el servicio `HAL_Delay()` que es una función que simula un loop requiriendo tiempo de procesamiento del micro hasta que termine el mismo.
+Lo que vemos como resultado de tener las 4 tareas creadas con la misma prioridad y tratando de correr generando una sensación de concurrencia pero esto es producto de la configuración de nuestro micro precisamente al Time Slicing: Si hay dos tareas de la misma prioridad listas, el scheduler alternará entre ellas en cada iteración del Tick Interrupt (Round Robin).
 
-Los tiempos que vemos no son precisos ya que al tener todas la misma prioridad el micro le da una porcion de procesamiento a cada una y ninguna termina su loop al tiempo que determinamos.
+Los tiempos que vemos no son precisos ya que al tener todas la misma prioridad el micro le da una porción de procesamiento a cada una y ninguna termina su loop al tiempo que determinamos.
 
-## Desafio 2
+## Desafío 2
 
-**Preguntas:** Que diferencias hay en las transiciones de tareas respecto al caso del Desafio 1? (De ser posible medir con fines comparativos utilizando los mismos periodos de conmutacion del caso anterior).
+**Preguntas:** ¿Qué diferencias hay en las transiciones de tareas respecto al caso del Desafío 1? (De ser posible medir con fines comparativos utilizando los mismos periodos de conmutación del caso anterior).
 
-### Analisis:
+### Análisis:
 
-Para este desafio empezamos a parametrizar las configuraciones y los parametros de los LEDS (en el futuro seran otros perifericos) y empezamos a definir tareas mas generales para solo tener instancias de la misma
+Para este desafío empezamos a parametrizar las configuraciones y los parámetros de los LEDS (en el futuro serán otros periféricos) y empezamos a definir tareas más generales para solo tener instancias de la misma.
 
 ```
 ESTRUCTURA DE PARAMETROS DE LOS LEDS
@@ -70,20 +70,20 @@ void vTareaParpadeo(void * pvParameters){
 }
 ```
 En el Desafío 1 las tareas pasaban únicamente de Ready a Running consumiendo el 100% de la CPU y desperdiciando recursos. 
-Mietras que en el Desafío 2 las tareas ahora pasan por Running, Blocked y Ready. Tardan apenas unos microsegundos en hacer el Toggle del pin y calcular el nuevo vTaskDelay, liberando la CPU. Ahora, durante el 99.9% del tiempo, las 4 tareas están en estado Blocked.
+Mientras que en el Desafío 2 las tareas ahora pasan por Running, Blocked y Ready. Tardan apenas unos microsegundos en hacer el Toggle del pin y calcular el nuevo vTaskDelay, liberando la CPU. Ahora, durante el 99.9% del tiempo, las 4 tareas están en estado Blocked.
 
-Con un oscilocospio podriamos ver los tiempos de onda y calcular el tiempo que demora en teoria los tiempos tendrian un exactitud muy grande acercandose casi a los tiempos que **determinamos**. 
+Con un osciloscopio podríamos ver los tiempos de onda y calcular el tiempo que demora; en teoría los tiempos tendrían una exactitud muy grande acercándose casi a los tiempos que **determinamos**. 
 
-## Desafio 3
+## Desafío 3
 
-**Preguntas:** Probar con diferentes tiempos para vTaskDelay(). Que efecto se observa a medida que ese tiempo aumenta? Que tiempo satisface el deadline impuesto en la consigna?
+**Preguntas:** Probar con diferentes tiempos para vTaskDelay(). ¿Qué efecto se observa a medida que ese tiempo aumenta? ¿Qué tiempo satisface el deadline impuesto en la consigna?
 
-### Analisis
+### Análisis
 
-Para este desafio empezamos a itroducir nuevos perifericos y la forma de poder interectuar con ellos. La manera que vamos a ver es la de Pulling pero para evitar el starvation la tarea de alta prioridad `vPollingButton()` debe liberar voluntariamente la CPU. Al llamar a `vTaskDelay()`, la tarea del botón pasa al estado Blocked. Mientras está bloqueada, consume 0% de CPU, permitiendo que la tarea del LED (baja prioridad) se ejecute.
+Para este desafío empezamos a introducir nuevos periféricos y la forma de poder interactuar con ellos. La manera que vamos a ver es la de Polling pero para evitar el starvation la tarea de alta prioridad `vPollingButton()` debe liberar voluntariamente la CPU. Al llamar a `vTaskDelay()`, la tarea del botón pasa al estado Blocked. Mientras está bloqueada, consume 0% de CPU, permitiendo que la tarea del LED (baja prioridad) se ejecute.
 
 ```
-TAREA ENCARGADA DE HACER PULLING SIN STARVATION
+TAREA ENCARGADA DE HACER POLLING SIN STARVATION
 
 void vPollingButton(void * pvParameters){
 	GPIO_PinState status_button;
@@ -102,17 +102,17 @@ void vPollingButton(void * pvParameters){
 	}
 }
 ```
-Si variamos los tiempos de lectura del bot el LED parpadea normalmente, pero el botón se volverá "lento". Si presionamos y soltamos el botón muy rápido (en menos de 500ms), la tarea del botón estará en estado Blocked y ni siquiera leará que presionamos el botón y no sucederá nada el estado del led no cambiará. 
+Si variamos los tiempos de lectura del botón el LED parpadea normalmente, pero el botón se volverá "lento". Si presionamos y soltamos el botón muy rápido (en menos de 500ms), la tarea del botón estará en estado Blocked y ni siquiera leerá que presionamos el botón y no sucederá nada, el estado del led no cambiará. 
 
-Para respetar el tiempo de respuesta del LED 2 y que no supere los 10 ms, la tarea debe revisar el botón al menos cada 10 milisegundos por ende debemos usar `vTaskDelay(pdMS_TO_TICKS(10))`. La tarea se bloquea por 10ms y lee el botón, actualiza el LED y vuelve a bloquarse.
+Para respetar el tiempo de respuesta del LED 2 y que no supere los 10 ms, la tarea debe revisar el botón al menos cada 10 milisegundos, por ende debemos usar `vTaskDelay(pdMS_TO_TICKS(10))`. La tarea se bloquea por 10ms y lee el botón, actualiza el LED y vuelve a bloquearse.
 
-## Desafio 4
+## Desafío 4
 
-**Preguntas:** Intuitivamente determinar el tiempo (?) argumento de los servicios `xTaskDelay()` y `xTaskDelayUntil()` para cumplir con los tiempos impuestos en la consigna. Ambos argumentos son iguales? Que efecto se observa si lo fueran? Porque?
+**Preguntas:** Intuitivamente determinar el tiempo (?) argumento de los servicios `xTaskDelay()` y `xTaskDelayUntil()` para cumplir con los tiempos impuestos en la consigna. ¿Ambos argumentos son iguales? ¿Qué efecto se observa si lo fueran? ¿Por qué?
 
-### Analisis:
+### Análisis:
 
-Para este desafio vamos a itroducir el analisis de los tiempos de delay y de cuando se inicia el conteo de los mismos. Para ello usaremos dos tareas que parecen similares pero son conceptualmente diferentes. Mientras que `xTaskDelay()` cuenta el tiempo desde que es llamada sin importarle lo que sucede en el medio (tiempos de lectura de perifericos, procesamientos de datos, etc) el servicio `xTaskDelayUntil()` resuelve el problema especificando la hora exacta en la que la tarea debe desbloquearse, sin importar cuánto tardó en ejecutarse el código previo (siempre y cuando el código tarde menos que el periodo total).
+Para este desafío vamos a introducir el análisis de los tiempos de delay y de cuándo se inicia el conteo de los mismos. Para ello usaremos dos tareas que parecen similares pero son conceptualmente diferentes. Mientras que `xTaskDelay()` cuenta el tiempo desde que es llamada sin importarle lo que sucede en el medio (tiempos de lectura de periféricos, procesamientos de datos, etc), el servicio `xTaskDelayUntil()` resuelve el problema especificando la hora exacta en la que la tarea debe desbloquearse, sin importar cuánto tardó en ejecutarse el código previo (siempre y cuando el código tarde menos que el periodo total).
 
 ```
 void vTareaParpadeo_Delay(void * pvParameters){
@@ -159,18 +159,18 @@ void vPollingButton(void * pvParameters){
 }
 ```
 
-Para lograr el comportamiento esperado sabemos que uno de los servicios no va a tener el cuenta el tiempo que se pasa en el servicio `HAL_Delay()` mientras que el otro si por ende hay que tener en cuenta esta diferencia entre tiempo relativo y tiempo absoluto. Intuitivamente la diferencia es de 100 por ende la tarea que utilice `xTaskDelayUntil()` va a tener en cuenta esto y por ende le tenemos que restar esos 100, quedando `Led_Param_t Led1_delay = {GPIOD, GPIO_PIN_12, 400}; Led_Param_t Led2_delay = {GPIOD, GPIO_PIN_13, 500};` respectivamente. 
-Si fueran iguales veriamos un desfase en los LEDS porque vTaskDelay empieza a contar los Ticks de bloqueo después de que se terminó de procesar el HAL_Delay(100). 
+Para lograr el comportamiento esperado sabemos que uno de los servicios no va a tener en cuenta el tiempo que se pasa en el servicio `HAL_Delay()` mientras que el otro sí, por ende hay que tener en cuenta esta diferencia entre tiempo relativo y tiempo absoluto. Intuitivamente la diferencia es de 100, por ende la tarea que utilice `xTaskDelayUntil()` va a tener en cuenta esto y por ende le tenemos que restar esos 100, quedando `Led_Param_t Led1_delay = {GPIOD, GPIO_PIN_12, 400}; Led_Param_t Led2_delay = {GPIOD, GPIO_PIN_13, 500};` respectivamente. 
+Si fueran iguales veríamos un desfase en los LEDS porque vTaskDelay empieza a contar los Ticks de bloqueo después de que se terminó de procesar el HAL_Delay(100). 
 
-## Desafio 5
+## Desafío 5
 
-**Preguntas:** Que ocurre cuando la prioridad de la tarea A se reestablece? Que servicio se
-utilizo para hacer el conteo de los 3 segundos? Se logró el comportamiento descripto en
-el enunciado en el primer intento? De no ser asi, porque?
+**Preguntas:** ¿Qué ocurre cuando la prioridad de la tarea A se restablece? ¿Qué servicio se
+utilizó para hacer el conteo de los 3 segundos? ¿Se logró el comportamiento descrito en
+el enunciado en el primer intento? De no ser así, ¿por qué?
 
-### Analisis
+### Análisis
 
-En este desafio nos introducimos a como el scheduler (y su configuracion) determinan que tareas se van a procesar teniendo en cuenta principalmente *la prioridad*.
+En este desafío nos introducimos a cómo el scheduler (y su configuración) determinan qué tareas se van a procesar teniendo en cuenta principalmente *la prioridad*.
 
 ```
 int main(){
@@ -204,7 +204,7 @@ void vPollingButton_Priority(void * pvParameters){
 
 			vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(3000));
 
-			// Deberiamos tener un condicion if tal que priority > 0 siempre en este punto
+			// Deberíamos tener una condición if tal que priority > 0 siempre en este punto
 			vTaskPrioritySet(xTarea_LedA_handle, priority - 1);
 		}
 
@@ -213,17 +213,17 @@ void vPollingButton_Priority(void * pvParameters){
 	}
 }
 ```
-Pudimos lograr el comportamiento esperado ya que utilizamos en lugar correcto los servicios `uxTaskPriorityGet()` y `vTaskPrioritySet()`, los mismos que son los encargados de leer y setear las prioridades de las tareas deben ser utilzados en los servicios que generan los eventos como en este caso el Polling del boton. 
+Pudimos lograr el comportamiento esperado ya que utilizamos en el lugar correcto los servicios `uxTaskPriorityGet()` y `vTaskPrioritySet()`; los mismos que son los encargados de leer y setear las prioridades de las tareas deben ser utilizados en los servicios que generan los eventos como en este caso el Polling del botón. 
 En el momento en que `vTaskPrioritySet(NULL, uxPrioridadOriginal)` se ejecuta, la Tarea A vuelve a Prioridad 1 y como la Tarea B (Prioridad 1) probablemente llevaba casi 3 segundos intentando ejecutarse (estaba en estado Ready esperando CPU), el Scheduler en el siguiente Tick le devuelve el control a la Tarea B. Ambas vuelven a compartir la CPU y ambos LEDs retoman su parpadeo de 300ms.
 
 
-## Desafio 6
+## Desafío 6
 
-**Preguntas:** Reemplazar el polling por un mecanismo de espera pasiva. Proponer una forma de visualizar dinamicamente (algo cambia todo el tiempo) que la tarea en cuestion efectivamente no esta consumiendo tiempo del procesador. No esta permitido crear nuevas tareas. 
+**Preguntas:** Reemplazar el polling por un mecanismo de espera pasiva. Proponer una forma de visualizar dinámicamente (algo cambia todo el tiempo) que la tarea en cuestión efectivamente no está consumiendo tiempo del procesador. No está permitido crear nuevas tareas. 
 
-### Analisis
+### Análisis
 
-En este desafia nos introducimos en las interrupciones para solucionar el caso de estar todo el tiempo consultando al boton si fue activado.
+En este desafío nos introducimos en las interrupciones para solucionar el caso de estar todo el tiempo consultando al botón si fue activado.
  La solución es el Procesamiento Diferido:
 
 - Ocurre la interrupción de hardware (el pulsador en EXTI0).
@@ -232,7 +232,7 @@ En este desafia nos introducimos en las interrupciones para solucionar el caso d
 
 ```
 Led_Param_t param_Led3 = {GPIOD, GPIO_PIN_14, 50};
-Led_Param_t param_Led4 = {GPIOD, GPIO_PIN_15, 0}; // Para la tarea minima de scheduler (Tarea Idle)
+Led_Param_t param_Led4 = {GPIOD, GPIO_PIN_15, 0}; // Para la tarea mínima de scheduler (Tarea Idle)
 
 void vBlinkyLed_Deferred(void * pvParameters){
 	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
@@ -273,16 +273,16 @@ void vApplicationIdleHook(void)
   }
 
   xSemaphoreGive(semaphore_L4_L2); // Iniciar la secuencia
-Para comprobar el comportamiento esperado utilizamos la funcion minima que utiliza `FreeRTOS` (el scheduler) para cuando no hay nada para hacer. Esta es la `void vApplicationIdleHook(void)`
-Activaremos el Idle Hook y haremos que parpadee un LED. Este seguira parpadeando por mas que nosotros toquemos muchas veces el boton o no lo toquemos por que es la tarea que siempre ejecuta el scheduler. 
+Para comprobar el comportamiento esperado utilizamos la función mínima que utiliza `FreeRTOS` (el scheduler) para cuando no hay nada para hacer. Esta es la `void vApplicationIdleHook(void)`.
+Activaremos el Idle Hook y haremos que parpadee un LED. Este seguirá parpadeando por más que nosotros toquemos muchas veces el botón o no lo toquemos porque es la tarea que siempre ejecuta el scheduler. 
 
-## Desafio 7
+## Desafío 7
 
-**Preguntas:** Que se debe cambiar para alterar el orden de la secuencia? Es posible implementar una solucion a este problema escribiedno una unica funcion?.
+**Preguntas:** ¿Qué se debe cambiar para alterar el orden de la secuencia? ¿Es posible implementar una solución a este problema escribiendo una única función?.
 
-### Analisis
+### Análisis
 
-En este desafio vamos a ver como varias tareas se pueden sincronizar entre ellas gracias a los *semaforos*. Vamos a utilizar la idea de un circulo de y cada tarea toma un semaforo para luego desbloquear el de la tarea siguiente. 
+En este desafío vamos a ver cómo varias tareas se pueden sincronizar entre ellas gracias a los *semáforos*. Vamos a utilizar la idea de un círculo y cada tarea toma un semáforo para luego desbloquear el de la tarea siguiente. 
 
 ```
 int main(){
@@ -312,30 +312,29 @@ void vBlinkyLed2_Semaphore(void * pvParameters){
 }
 ```
 
-Mientras realizamos el desafio notamos como las tareas son muy similares entre si y propusimos la idea de apliar la de manera tal que tengamos todo los parametros necesarios para realizar lo mismo que hicimos en 3 tareas independientes. Para la tarea general `vBlinkyLed_Semaphore()` tendriamos todos los datos necesarios y seria simplemente extraer los datos del parametro `*pvParameters`. 
+Mientras realizamos el desafío notamos cómo las tareas son muy similares entre sí y propusimos la idea de ampliarla de manera tal que tengamos todos los parámetros necesarios para realizar lo mismo que hicimos en 3 tareas independientes. Para la tarea general `vBlinkyLed_Semaphore()` tendríamos todos los datos necesarios y sería simplemente extraer los datos del parámetro `*pvParameters`. 
 ```
 typedef struct {
     SemaphoreHandle_t xSemTomar;     // Semáforo que debe esperar
     SemaphoreHandle_t xSemDar;       // Semáforo que debe liberar
 
-	GPIO_TypeDef* GPIO_puerto_set;   // Parametros del LED a encender
+	GPIO_TypeDef* GPIO_puerto_set;   // Parámetros del LED a encender
 	uint16_t GPIO_pin_set;
 	uint32_t delay;
 
-	GPIO_TypeDef* GPIO_puerto_reset; // Parametros del LED a apagar
+	GPIO_TypeDef* GPIO_puerto_reset; // Parámetros del LED a apagar
 	uint16_t GPIO_pin_reset;
 } ParametrosSecuencia_t;
 ```
 
-## Desafio 8
+## Desafío 8
 
-**Preguntas:** Comprender el acceso exclusivo a recursos compartidos. Se debe usar servicios bloqueante (vTaskDelay()) o no-bloqueante (HAL Delay())
-para contar los tiempos asociados a una secuencia? Porque? Reescriba el ejercicio utili-
-zando el otro servicio de Delay al propuesto originalmente y compare su comportamiento.
+**Preguntas:** Comprender el acceso exclusivo a recursos compartidos. ¿Se debe usar servicios bloqueantes (vTaskDelay()) o no-bloqueantes (HAL Delay())
+para contar los tiempos asociados a una secuencia? ¿Por qué? Reescriba el ejercicio utilizando el otro servicio de Delay al propuesto originalmente y compare su comportamiento.
 
-### Analisis
+### Análisis
 
-En este desafio vamos a utilizar un mutex para sincronizar dos secuencias diferentes de LEDS. Ya que es critico el uso de los LEDS todo queda bajo el control del mutex y la otra tarea que quiera hacer uso de ellos deberá esperar el recurso. 
+En este desafío vamos a utilizar un mutex para sincronizar dos secuencias diferentes de LEDS. Ya que es crítico el uso de los LEDS todo queda bajo el control del mutex y la otra tarea que quiera hacer uso de ellos deberá esperar el recurso. 
 
 ```
 const Led_Param_t leds[4] = {{GPIOD, GPIO_PIN_12, 500},	{GPIOD, GPIO_PIN_13, 500}, {GPIOD, GPIO_PIN_14, 600}, {GPIOD, GPIO_PIN_15, 800}};
@@ -403,23 +402,23 @@ void vBlinky4Leds(void * pvParameters){
 }
 ```
 
-Tanto `vTaskDelay()` como `HAL_Delay()` tienen un efecto visual similiar pero internamente y conceptualmente son MUY diferentes. 
+Tanto `vTaskDelay()` como `HAL_Delay()` tienen un efecto visual similar pero interna y conceptualmente son MUY diferentes. 
 - Con HAL_Delay(): Utilizamos el 100% de la CPU y retenemos el Mutex. La otra tarea jamás se ejecuta hasta que soltemos el Mutex. Funciona visualmente, pero es catastrófico para la eficiencia energética y el determinismo general.
 
-- Con vTaskDelay(): La tarea libera la CPU, permitiendo que otras tareas se ejecuten. Sin embargo, retenemos el Mutex mientras esta bloqueada. La otra tarea intentará tomar el Mutex, fallará y se bloqueará. Esto es más eficiente a nivel de CPU permitiendo que el sistema haga otras cosas mientras estamos utilizando el recurso critico. 
+- Con vTaskDelay(): La tarea libera la CPU, permitiendo que otras tareas se ejecuten. Sin embargo, retenemos el Mutex mientras está bloqueada. La otra tarea intentará tomar el Mutex, fallará y se bloqueará. Esto es más eficiente a nivel de CPU permitiendo que el sistema haga otras cosas mientras estamos utilizando el recurso crítico. 
 
 
 
 
-## Desafio 9
+## Desafío 9
 
-**Preguntas:** Que consecuencias tiene para el sistema que el estado del pulsador se determine
-por Poolling o por interrupcion? Implementar la que ud. considere la solucion que genera
-el mejor tiempo de respuesta? Esta seguro?
+**Preguntas:** ¿Qué consecuencias tiene para el sistema que el estado del pulsador se determine
+por Polling o por interrupción? ¿Implementar la que ud. considere la solución que genera
+el mejor tiempo de respuesta? ¿Está seguro?
 
-### Analisis:
+### Análisis:
 
-En este desafio vamos a introducir el estado que nos faltaba por usar el de *Suspended*. Vamos a tener una tarea con mayor prioridad que va a suspender a otro luego de que un periferico realice una interrupcion. 
+En este desafío vamos a introducir el estado que nos faltaba por usar: el de *Suspended*. Vamos a tener una tarea con mayor prioridad que va a suspender a otra luego de que un periférico realice una interrupción. 
 
 ```
 TaskHandle_t xHandleTaskA = NULL;
@@ -475,7 +474,7 @@ void vSuspension_Task(void * pvParameters){
 	}
 }
 ```
-Realizamos la version con interrucion del buton ya que:
+Realizamos la versión con interrupción del botón ya que:
 
 - Polling:
 
@@ -483,17 +482,17 @@ Realizamos la version con interrucion del buton ya que:
 
 - Interrupción (EXTI):
 
-        El hardware (boton en este caso) interrumpe el flujo de nuestro programa y mejorando el tiempo de respuesta ya que la rutina de interrupcion de ese periferico libera un semaforo binario que habilita a la tarea vigilante que realiza la logica para la suspencion.
+        El hardware (botón en este caso) interrumpe el flujo de nuestro programa y mejorando el tiempo de respuesta ya que la rutina de interrupción de ese periférico libera un semáforo binario que habilita a la tarea vigilante que realiza la lógica para la suspensión.
 
 El resultado es ver parpadear los LEDs. Al pulsar el botón, la ejecución de la Tarea de LEDS se detendrá en seco. Si los LEDs estaban encendidos, se quedarán encendidos. Si estaban apagados, apagados. Una segunda pulsación reanudará el ciclo exactamente donde se quedó.
 
-## Desafio 10
+## Desafío 10
 
-**Preguntas:** Hay alguna forma de exteriorizar (mediante algun evento visible) que esa tarea efectivamente se ha eliminado y no se encuentra mas disponible para su ejecución?
+**Preguntas:** ¿Hay alguna forma de exteriorizar (mediante algún evento visible) que esa tarea efectivamente se ha eliminado y no se encuentra más disponible para su ejecución?
 
-### Analisis:
+### Análisis:
 
-Finalmente en este desafio vemos como es posible eliminar de la memoria las tareas que instanciamos ya que en algunos casos queremos que tengan un vida util y no acaparen recursos de memoria. 
+Finalmente en este desafío vemos cómo es posible eliminar de la memoria las tareas que instanciamos ya que en algunos casos queremos que tengan una vida útil y no acaparen recursos de memoria. 
 
 ```
 void vBlinkyLedsSecuence(void * pvParameters){
@@ -538,6 +537,5 @@ void vApplicationIdleHook(void)
 	}
 }
 ```
-Para poder verificar que efectivamente se elimino la tarea (no esta mas en nuestro sistemas de tareas disponibles para el sscheduler) usamos nuestra tarea *Idle* para que nos muestre con leds cuantas tareas quedan. En nuestro caso siempre tenemos 3 tareas disponles (lo averiguamos con una investigacion profunda del manual) y si le sumamos la tarea del desafio tendriamos 4.
-Entonces podemos ver en ambos casos en que etapa estamos si durante el bloqueo de la tarea `vBlinkyLedsSecuence` vemos el LED del pin 13 es por que todavia no se elimino. Luego de la secuencia deberiamos ver como  se prende solo el LED del pin 12.
-
+Para poder verificar que efectivamente se eliminó la tarea (no está más en nuestro sistema de tareas disponibles para el scheduler) usamos nuestra tarea *Idle* para que nos muestre con leds cuántas tareas quedan. En nuestro caso siempre tenemos 3 tareas disponibles (lo averiguamos con una investigación profunda del manual) y si le sumamos la tarea del desafío tendríamos 4.
+Entonces podemos ver en ambos casos en qué etapa estamos; si durante el bloqueo de la tarea `vBlinkyLedsSecuence` vemos el LED del pin 13 es porque todavía no se eliminó. Luego de la secuencia deberíamos ver cómo se prende solo el LED del pin 12.
