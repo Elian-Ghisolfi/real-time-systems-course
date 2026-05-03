@@ -329,9 +329,84 @@ typedef struct {
 
 ## Desafio 8
 
-**Preguntas:** 
+**Preguntas:** Comprender el acceso exclusivo a recursos compartidos. Se debe usar servicios bloqueante (vTaskDelay()) o no-bloqueante (HAL Delay())
+para contar los tiempos asociados a una secuencia? Porque? Reescriba el ejercicio utili-
+zando el otro servicio de Delay al propuesto originalmente y compare su comportamiento.
 
 ### Analisis
+
+En este desafio vamos a utilizar un mutex para sincronizar dos secuencias diferentes de LEDS. Ya que es critico el uso de los LEDS todo queda bajo el control del mutex y la otra tarea que quiera hacer uso de ellos deberá esperar el recurso. 
+
+```
+const Led_Param_t leds[4] = {{GPIOD, GPIO_PIN_12, 500},	{GPIOD, GPIO_PIN_13, 500}, {GPIOD, GPIO_PIN_14, 600}, {GPIOD, GPIO_PIN_15, 800}};
+int main(){
+
+  Semaphored_Mutex_LEDS = xSemaphoreCreateMutex();
+
+  if(Semaphored_Mutex_LEDS != NULL){
+
+	  xTaskCreate(vBlinky4Leds, "4 Leds ", 100, (void *) &leds, 0, NULL);
+	  xTaskCreate(vBlinkyLedsSecuence, "4 Leds ", 100, (void *) &leds, 0, NULL);
+
+  }
+}
+// TAREAS QUE SE SINCRONIZAN CON EL MUTEX
+
+void vBlinkyLedsSecuence(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+
+	while(1){
+
+		xSemaphoreTake(Semaphored_Mutex_LEDS, portMAX_DELAY); {
+
+			for (int i = 0; i < 4; i++) {
+				HAL_GPIO_WritePin(pxParam[i].GPIO_puerto, pxParam[i].GPIO_pin, GPIO_PIN_SET);
+				HAL_Delay(200);
+				//vTaskDelay(pdMS_TO_TICKS(200));
+
+				HAL_GPIO_WritePin(pxParam[i].GPIO_puerto, pxParam[i].GPIO_pin, GPIO_PIN_RESET);
+				HAL_Delay(200);
+				//vTaskDelay(pdMS_TO_TICKS(200));
+			}
+
+		}
+		xSemaphoreGive(Semaphored_Mutex_LEDS);
+		vTaskDelay(pdMS_TO_TICKS(50));
+	}
+}
+void vBlinky4Leds(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+
+	while(1){
+
+		xSemaphoreTake(Semaphored_Mutex_LEDS, portMAX_DELAY); {
+
+			for (int i = 0; i < 4; i++) {
+				HAL_GPIO_WritePin(pxParam[0].GPIO_puerto, pxParam[0].GPIO_pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(pxParam[1].GPIO_puerto, pxParam[1].GPIO_pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(pxParam[2].GPIO_puerto, pxParam[2].GPIO_pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(pxParam[3].GPIO_puerto, pxParam[3].GPIO_pin, GPIO_PIN_SET);
+				HAL_Delay(200);
+				//vTaskDelay(pdMS_TO_TICKS(200));
+
+				HAL_GPIO_WritePin(pxParam[0].GPIO_puerto, pxParam[0].GPIO_pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(pxParam[1].GPIO_puerto, pxParam[1].GPIO_pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(pxParam[2].GPIO_puerto, pxParam[2].GPIO_pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(pxParam[3].GPIO_puerto, pxParam[3].GPIO_pin, GPIO_PIN_RESET);
+				HAL_Delay(200);
+				//vTaskDelay(pdMS_TO_TICKS(200));
+			}
+		}
+		xSemaphoreGive(Semaphored_Mutex_LEDS);
+		vTaskDelay(pdMS_TO_TICKS(50));
+	}
+}
+```
+
+Tanto `vTaskDelay()` como `HAL_Delay()` tienen un efecto visual similiar pero internamente y conceptualmente son MUY diferentes. 
+- Con HAL_Delay(): Utilizamos el 100% de la CPU y retenemos el Mutex. La otra tarea jamás se ejecuta hasta que soltemos el Mutex. Funciona visualmente, pero es catastrófico para la eficiencia energética y el determinismo general.
+
+- Con vTaskDelay(): La tarea libera la CPU, permitiendo que otras tareas se ejecuten. Sin embargo, retenemos el Mutex mientras esta bloqueada. La otra tarea intentará tomar el Mutex, fallará y se bloqueará. Esto es más eficiente a nivel de CPU permitiendo que el sistema haga otras cosas mientras estamos utilizando el recurso critico. 
 
 
 ## Desafio 9
