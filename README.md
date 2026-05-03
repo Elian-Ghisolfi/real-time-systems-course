@@ -409,13 +409,15 @@ Tanto `vTaskDelay()` como `HAL_Delay()` tienen un efecto visual similiar pero in
 - Con vTaskDelay(): La tarea libera la CPU, permitiendo que otras tareas se ejecuten. Sin embargo, retenemos el Mutex mientras esta bloqueada. La otra tarea intentará tomar el Mutex, fallará y se bloqueará. Esto es más eficiente a nivel de CPU permitiendo que el sistema haga otras cosas mientras estamos utilizando el recurso critico. 
 
 
+
+
 ## Desafio 9
 
 **Preguntas:** Que consecuencias tiene para el sistema que el estado del pulsador se determine
 por Poolling o por interrupcion? Implementar la que ud. considere la solucion que genera
 el mejor tiempo de respuesta? Esta seguro?
 
-### Analisis
+### Analisis:
 
 En este desafio vamos a introducir el estado que nos faltaba por usar el de *Suspended*. Vamos a tener una tarea con mayor prioridad que va a suspender a otro luego de que un periferico realice una interrupcion. 
 
@@ -481,9 +483,61 @@ Realizamos la version con interrucion del buton ya que:
 
 - Interrupción (EXTI):
 
-        El hardware (boton en este caso) interrumpe el flujo de nuestro programa y mejorando el tiempo de respuesta ya que la rutina de interrupcion de ese periferico libera un semaforo binario que habilita a la tarea vigilante que realiza la logica para la *suspencion* 
+        El hardware (boton en este caso) interrumpe el flujo de nuestro programa y mejorando el tiempo de respuesta ya que la rutina de interrupcion de ese periferico libera un semaforo binario que habilita a la tarea vigilante que realiza la logica para la suspencion.
 
-        ¿Estoy seguro? Sí, pero hay una trampa (El rebote mecánico). Si usamos directamente la ISR para llamar a xTaskResumeFromISR(), los rebotes mecánicos del botón generarán múltiples interrupciones en milisegundos, causando un caos de suspensiones y reanudaciones. Además, el manual advierte que xTaskResumeFromISR() no debe usarse para sincronización porque si la interrupción ocurre antes de que la tarea esté suspendida, el "Resume" se pierde.
+El resultado es ver parpadear los LEDs. Al pulsar el botón, la ejecución de la Tarea de LEDS se detendrá en seco. Si los LEDs estaban encendidos, se quedarán encendidos. Si estaban apagados, apagados. Una segunda pulsación reanudará el ciclo exactamente donde se quedó.
 
 ## Desafio 10
-### Analisis
+
+**Preguntas:** Hay alguna forma de exteriorizar (mediante algun evento visible) que esa tarea efectivamente se ha eliminado y no se encuentra mas disponible para su ejecución?
+
+### Analisis:
+
+Finalmente en este desafio vemos como es posible eliminar de la memoria las tareas que instanciamos ya que en algunos casos queremos que tengan un vida util y no acaparen recursos de memoria. 
+
+```
+void vBlinkyLedsSecuence(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+	TickType_t LastWakeTime;
+	LastWakeTime = xTaskGetTickCount();
+	while (1){
+		for (int i = 0; i < 10; i++) {
+			if (xSemaphoreTake(Semaphore_LEDS, portMAX_DELAY)) {
+				HAL_GPIO_WritePin(pxParam[0].GPIO_puerto, pxParam[0].GPIO_pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(pxParam[1].GPIO_puerto, pxParam[1].GPIO_pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(pxParam[2].GPIO_puerto, pxParam[2].GPIO_pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(pxParam[3].GPIO_puerto, pxParam[3].GPIO_pin, GPIO_PIN_SET);
+				xSemaphoreGive(Semaphore_LEDS);
+				vTaskDelayUntil(&LastWakeTime, pdMS_TO_TICKS(500));
+			}
+			if (xSemaphoreTake(Semaphore_LEDS, portMAX_DELAY)) {
+				HAL_GPIO_WritePin(pxParam[0].GPIO_puerto, pxParam[0].GPIO_pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(pxParam[1].GPIO_puerto, pxParam[1].GPIO_pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(pxParam[2].GPIO_puerto, pxParam[2].GPIO_pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(pxParam[3].GPIO_puerto, pxParam[3].GPIO_pin, GPIO_PIN_RESET);
+				xSemaphoreGive(Semaphore_LEDS);
+				vTaskDelayUntil(&LastWakeTime, pdMS_TO_TICKS(500));
+			}
+		}
+
+		HAL_GPIO_WritePin(pxParam[3].GPIO_puerto, pxParam[3].GPIO_pin, GPIO_PIN_SET);
+		vTaskDelete(NULL);
+	}
+}
+
+void vApplicationIdleHook(void)
+{
+	uint16_t totalTasks = 0;
+	totalTasks = uxTaskGetNumberOfTasks();
+
+	if(totalTasks == 3){
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+	}
+	if(totalTasks == 4){
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+	}
+}
+```
+Para poder verificar que efectivamente se elimino la tarea (no esta mas en nuestro sistemas de tareas disponibles para el sscheduler) usamos nuestra tarea *Idle* para que nos muestre con leds cuantas tareas quedan. En nuestro caso siempre tenemos 3 tareas disponles (lo averiguamos con una investigacion profunda del manual) y si le sumamos la tarea del desafio tendriamos 4.
+Entonces podemos ver en ambos casos en que etapa estamos si durante el bloqueo de la tarea `vBlinkyLedsSecuence` vemos el LED del pin 13 es por que todavia no se elimino. Luego de la secuencia deberiamos ver como  se prende solo el LED del pin 12.
+
