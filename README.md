@@ -410,7 +410,80 @@ Tanto `vTaskDelay()` como `HAL_Delay()` tienen un efecto visual similiar pero in
 
 
 ## Desafio 9
+
+**Preguntas:** Que consecuencias tiene para el sistema que el estado del pulsador se determine
+por Poolling o por interrupcion? Implementar la que ud. considere la solucion que genera
+el mejor tiempo de respuesta? Esta seguro?
+
 ### Analisis
+
+En este desafio vamos a introducir el estado que nos faltaba por usar el de *Suspended*. Vamos a tener una tarea con mayor prioridad que va a suspender a otro luego de que un periferico realice una interrupcion. 
+
+```
+TaskHandle_t xHandleTaskA = NULL;
+SemaphoreHandle_t Semaphored_button = NULL;
+
+void vBlinkyLedsSecuence(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+
+	while(1){
+		for (int i = 0; i < 4; i++) {
+			HAL_GPIO_WritePin(pxParam[i].GPIO_puerto, pxParam[i].GPIO_pin, GPIO_PIN_SET);
+			HAL_Delay(200);
+			//vTaskDelay(pdMS_TO_TICKS(200));
+
+			HAL_GPIO_WritePin(pxParam[i].GPIO_puerto, pxParam[i].GPIO_pin, GPIO_PIN_RESET);
+			HAL_Delay(200);
+			//vTaskDelay(pdMS_TO_TICKS(200));
+
+
+		}
+		vTaskDelay(pdMS_TO_TICKS(50));
+	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+
+	if(GPIO_Pin == GPIO_PIN_0){
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+		xSemaphoreGiveFromISR(Semaphored_button, &xHigherPriorityTaskWoken);
+
+		/* 5. Si xHigherPriorityTaskWoken se puso en pdTRUE, forzamos un cambio de contexto
+		* para que al salir de la interrupción entremos directo a la tarea del botón. */
+		//portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
+}
+
+void vSuspension_Task(void * pvParameters){
+	uint16_t isSuspended = 0;
+
+	while(1){
+		if(xSemaphoreTake(Semaphored_button, portMAX_DELAY)){
+			if (isSuspended){
+				vTaskResume(xHandleTaskA);
+				isSuspended = 0;
+			} else {
+				vTaskSuspend(xHandleTaskA);
+				isSuspended = 1;
+			}
+			vTaskDelay(pdMS_TO_TICKS(50));
+			xSemaphoreTake(Semaphored_button, 0);
+		}
+	}
+}
+```
+Realizamos la version con interrucion del buton ya que:
+
+- Polling:
+
+        Si la Tarea B hace un HAL_GPIO_ReadPin continuamente con un vTaskDelay(50ms) para no monopolizar la CPU, el tiempo de respuesta en el peor de los casos será de 50 ms. Si no usa delay (espera activa), tendrá una respuesta casi instantánea, pero generará Starvation (Inanición), arruinando el sistema.
+
+- Interrupción (EXTI):
+
+        El hardware (boton en este caso) interrumpe el flujo de nuestro programa y mejorando el tiempo de respuesta ya que la rutina de interrupcion de ese periferico libera un semaforo binario que habilita a la tarea vigilante que realiza la logica para la *suspencion* 
+
+        ¿Estoy seguro? Sí, pero hay una trampa (El rebote mecánico). Si usamos directamente la ISR para llamar a xTaskResumeFromISR(), los rebotes mecánicos del botón generarán múltiples interrupciones en milisegundos, causando un caos de suspensiones y reanudaciones. Además, el manual advierte que xTaskResumeFromISR() no debe usarse para sincronización porque si la interrupción ocurre antes de que la tarea esté suspendida, el "Resume" se pierde.
 
 ## Desafio 10
 ### Analisis
