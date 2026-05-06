@@ -107,7 +107,7 @@ int main(void)
 
 	  xTaskCreate(vBlinkyLedsSecuence, "4 Leds ", 100, (void *) &leds, 0, NULL);
   }
-
+  xSemaphoreGive(Semaphore_LEDS);
   /* Start scheduler */
   vTaskStartScheduler();
 
@@ -207,9 +207,11 @@ void vApplicationIdleHook(void)
 
 	if(totalTasks == 3){
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+		HAL_Delay(500);
 	}
 	if(totalTasks == 4){
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+		HAL_Delay(500);
 	}
 }
 
