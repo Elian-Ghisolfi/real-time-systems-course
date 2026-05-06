@@ -108,7 +108,7 @@ int main(void)
 
   if(Semaphored_button != NULL){
 
-	  xTaskCreate(vBlinkyLedsSecuence, "4 Leds ", 100, (void *) &leds, 0, NULL);
+	  xTaskCreate(vBlinkyLedsSecuence, "4 Leds ", 100, (void *) &leds, 0, &xHandleTaskA);
 	  xTaskCreate(vSuspension_Task, "Vigilante", 100, NULL, 1, NULL);
   }
 
@@ -182,12 +182,12 @@ void vBlinkyLedsSecuence(void * pvParameters){
 	while(1){
 		for (int i = 0; i < 4; i++) {
 			HAL_GPIO_WritePin(pxParam[i].GPIO_puerto, pxParam[i].GPIO_pin, GPIO_PIN_SET);
-			HAL_Delay(200);
-			//vTaskDelay(pdMS_TO_TICKS(200));
+			//HAL_Delay(200);
+			vTaskDelay(pdMS_TO_TICKS(200));
 
 			HAL_GPIO_WritePin(pxParam[i].GPIO_puerto, pxParam[i].GPIO_pin, GPIO_PIN_RESET);
-			HAL_Delay(200);
-			//vTaskDelay(pdMS_TO_TICKS(200));
+			//HAL_Delay(200);
+			vTaskDelay(pdMS_TO_TICKS(200));
 
 
 		}
@@ -212,7 +212,7 @@ void vSuspension_Task(void * pvParameters){
 	uint16_t isSuspended = 0;
 
 	while(1){
-		if(xSemaphoreTake(Semaphored_button, portMAX_DELAY)){
+		if(xSemaphoreTake(Semaphored_button, portMAX_DELAY) == pdPASS){
 			if (isSuspended){
 				vTaskResume(xHandleTaskA);
 				isSuspended = 0;
@@ -221,7 +221,7 @@ void vSuspension_Task(void * pvParameters){
 				isSuspended = 1;
 			}
 			vTaskDelay(pdMS_TO_TICKS(50));
-			xSemaphoreTake(Semaphored_button, 0);
+			//xSemaphoreTake(Semaphored_button, 0);
 		}
 	}
 }
