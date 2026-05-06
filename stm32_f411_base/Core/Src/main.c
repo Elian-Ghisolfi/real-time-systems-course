@@ -183,12 +183,12 @@ void vBlinkyLedsSecuence(void * pvParameters){
 
 			for (int i = 0; i < 4; i++) {
 				HAL_GPIO_WritePin(pxParam[i].GPIO_puerto, pxParam[i].GPIO_pin, GPIO_PIN_SET);
-				HAL_Delay(200);
-				//vTaskDelay(pdMS_TO_TICKS(200));
+				//HAL_Delay(500);
+				vTaskDelay(pdMS_TO_TICKS(500));
 
 				HAL_GPIO_WritePin(pxParam[i].GPIO_puerto, pxParam[i].GPIO_pin, GPIO_PIN_RESET);
-				HAL_Delay(200);
-				//vTaskDelay(pdMS_TO_TICKS(200));
+				//HAL_Delay(500);
+				vTaskDelay(pdMS_TO_TICKS(500));
 			}
 
 		}
@@ -209,15 +209,15 @@ void vBlinky4Leds(void * pvParameters){
 				HAL_GPIO_WritePin(pxParam[1].GPIO_puerto, pxParam[1].GPIO_pin, GPIO_PIN_SET);
 				HAL_GPIO_WritePin(pxParam[2].GPIO_puerto, pxParam[2].GPIO_pin, GPIO_PIN_SET);
 				HAL_GPIO_WritePin(pxParam[3].GPIO_puerto, pxParam[3].GPIO_pin, GPIO_PIN_SET);
-				HAL_Delay(200);
-				//vTaskDelay(pdMS_TO_TICKS(200));
+				//HAL_Delay(500);
+				vTaskDelay(pdMS_TO_TICKS(500));
 
 				HAL_GPIO_WritePin(pxParam[0].GPIO_puerto, pxParam[0].GPIO_pin, GPIO_PIN_RESET);
 				HAL_GPIO_WritePin(pxParam[1].GPIO_puerto, pxParam[1].GPIO_pin, GPIO_PIN_RESET);
 				HAL_GPIO_WritePin(pxParam[2].GPIO_puerto, pxParam[2].GPIO_pin, GPIO_PIN_RESET);
 				HAL_GPIO_WritePin(pxParam[3].GPIO_puerto, pxParam[3].GPIO_pin, GPIO_PIN_RESET);
-				HAL_Delay(200);
-				//vTaskDelay(pdMS_TO_TICKS(200));
+				//HAL_Delay(500);
+				vTaskDelay(pdMS_TO_TICKS(500));
 			}
 		}
 		xSemaphoreGive(Semaphored_Mutex_LEDS);
