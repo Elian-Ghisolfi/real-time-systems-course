@@ -52,9 +52,9 @@ typedef struct {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-Led_Param_t param_Led2_Led3 = {GPIOD, GPIO_PIN_13, 200, GPIOD, GPIO_PIN_15};
-Led_Param_t param_Led3_Led4 = {GPIOD, GPIO_PIN_14, 200, GPIOD, GPIO_PIN_13};
-Led_Param_t param_Led4_Led2 = {GPIOD, GPIO_PIN_15, 200, GPIOD, GPIO_PIN_14};
+Led_Param_t param_Led2_Led3 = {GPIOD, GPIO_PIN_13, 1000, GPIOD, GPIO_PIN_15};
+Led_Param_t param_Led3_Led4 = {GPIOD, GPIO_PIN_14, 1000, GPIOD, GPIO_PIN_13};
+Led_Param_t param_Led4_Led2 = {GPIOD, GPIO_PIN_15, 1000, GPIOD, GPIO_PIN_14};
 
 
 SemaphoreHandle_t semaphore_L2_L3 = NULL;
@@ -193,9 +193,9 @@ void vBlinkyLed2_Semaphore(void * pvParameters){
 
 		if(xSemaphoreTake(semaphore_L4_L2, portMAX_DELAY) == pdPASS){
 
-			HAL_GPIO_TogglePin(pxParam->GPIO_puerto_reset, pxParam->GPIO_pin_reset);
-			HAL_GPIO_TogglePin(pxParam->GPIO_puerto_set, pxParam->GPIO_pin_set);
-			HAL_Delay(pxParam->delay);
+			HAL_GPIO_WritePin(pxParam->GPIO_puerto_reset, pxParam->GPIO_pin_reset, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(pxParam->GPIO_puerto_set, pxParam->GPIO_pin_set, GPIO_PIN_SET);
+			vTaskDelay(pdMS_TO_TICKS(pxParam->delay));
 
 			xSemaphoreGive(semaphore_L2_L3);
 		}
@@ -209,9 +209,9 @@ void vBlinkyLed3_Semaphore(void * pvParameters){
 
 		if(xSemaphoreTake(semaphore_L2_L3, portMAX_DELAY) == pdPASS){
 
-			HAL_GPIO_TogglePin(pxParam->GPIO_puerto_reset, pxParam->GPIO_pin_reset);
-			HAL_GPIO_TogglePin(pxParam->GPIO_puerto_set, pxParam->GPIO_pin_set);
-			HAL_Delay(pxParam->delay);
+			HAL_GPIO_WritePin(pxParam->GPIO_puerto_reset, pxParam->GPIO_pin_reset, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(pxParam->GPIO_puerto_set, pxParam->GPIO_pin_set, GPIO_PIN_SET);
+			vTaskDelay(pdMS_TO_TICKS(pxParam->delay));
 
 			xSemaphoreGive(semaphore_L3_L4);
 		}
@@ -225,9 +225,9 @@ void vBlinkyLed4_Semaphore(void * pvParameters){
 
 		if(xSemaphoreTake(semaphore_L3_L4, portMAX_DELAY) == pdPASS){
 
-			HAL_GPIO_TogglePin(pxParam->GPIO_puerto_reset, pxParam->GPIO_pin_reset);
-			HAL_GPIO_TogglePin(pxParam->GPIO_puerto_set, pxParam->GPIO_pin_set);
-			HAL_Delay(pxParam->delay);
+			HAL_GPIO_WritePin(pxParam->GPIO_puerto_reset, pxParam->GPIO_pin_reset, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(pxParam->GPIO_puerto_set, pxParam->GPIO_pin_set, GPIO_PIN_SET);
+			vTaskDelay(pdMS_TO_TICKS(pxParam->delay));
 
 			xSemaphoreGive(semaphore_L4_L2);
 		}
