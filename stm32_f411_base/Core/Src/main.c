@@ -25,6 +25,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
+#include "queue.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,16 +50,19 @@ typedef struct {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-Led_Param_t param_Led3 = {GPIOD, GPIO_PIN_14, 50};
-Led_Param_t param_Led4 = {GPIOD, GPIO_PIN_15, 0}; // Para la tarea minima de scheduler
+Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 500},	{GPIOD, GPIO_PIN_13, 500}, {GPIOD, GPIO_PIN_14, 600}, {GPIOD, GPIO_PIN_15, 800}};
 
 SemaphoreHandle_t semaphored_button = NULL;
+QueueHandle_t queue_button = NULL;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 
-void vBlinkyLed_Deferred(void * pvParameters);
+void vProducerTask(void * pvParameters);
+void vConsumerTask(void * pvParameters);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -99,11 +103,12 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
-  semaphored_button = xSemaphoreCreateBinary();
+  semaphored_button = xSemaphoreCreateCounting(15, 0);
+  queue_button = xQueueCreate(16, sizeof (uint16_t));
 
-  if(semaphored_button != NULL){
-
-	  xTaskCreate(vBlinkyLed_Deferred, "Led_Diferido", 100, &param_Led3, 0, NULL);
+  if((semaphored_button != NULL) && queue_button != NULL){
+	  xTaskCreate(vConsumerTask, "Consumer", 100, &leds_param, 1, NULL);
+	  xTaskCreate(vProducerTask, "Producer", 100, NULL, 1, NULL);
 
   }
 
@@ -170,20 +175,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void vBlinkyLed_Deferred(void * pvParameters){
-	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
-
-	while(1){
-
-		if(xSemaphoreTake(semaphored_button, portMAX_DELAY) == pdPASS){
-
-			HAL_GPIO_TogglePin(pxParam->GPIO_puerto, pxParam->GPIO_pin);
-
-		}
-		// vTaskDelay(pdMS_TO_TICKS(pxParam->delay));
-	}
-}
-
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 	if(GPIO_Pin == GPIO_PIN_0){
@@ -193,17 +184,47 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 		/* 5. Si xHigherPriorityTaskWoken se puso en pdTRUE, forzamos un cambio de contexto
 		* para que al salir de la interrupción entremos directo a la tarea del botón. */
-		//portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 	}
 
 }
 
-void vApplicationIdleHook(void)
-{
-    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15); // LED4
+void vProducerTask(void * pvParameters){
+	uint16_t button_count = 0;
 
-    HAL_Delay(200);
+	while(1){
+		if(xSemaphoreTake(semaphored_button, portMAX_DELAY) == pdPASS){
+			button_count ++;
+
+			xQueueSend(queue_button, &button_count, portMAX_DELAY);
+		}
+	}
 }
+
+void vConsumerTask(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+	uint16_t count_receive = 0;
+	uint8_t leds[4];
+
+	while(1){
+		if(xQueueReceive(queue_button, &count_receive, portMAX_DELAY) == pdPASS){
+			leds[0] = (count_receive / 1) % 2;
+			leds[1] = (count_receive / 2) % 2;
+			leds[2] = (count_receive / 4) % 2;
+			leds[3] = (count_receive / 8) % 2;
+
+			for (int var = 0; var < 4; ++var) {
+				if(leds[var] == 1){
+					HAL_GPIO_WritePin(pxParam[var].GPIO_puerto, pxParam[var].GPIO_pin, GPIO_PIN_SET);
+				}else{
+					HAL_GPIO_WritePin(pxParam[var].GPIO_puerto, pxParam[var].GPIO_pin, GPIO_PIN_RESET);
+				}
+			}
+		}
+	}
+}
+
+
 
 /* USER CODE END 4 */
 
