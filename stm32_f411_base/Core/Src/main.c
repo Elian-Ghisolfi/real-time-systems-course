@@ -202,16 +202,19 @@ void vBlinkyLedsSecuence(void * pvParameters){
 
 void vApplicationIdleHook(void)
 {
-	uint16_t totalTasks = 0;
-	totalTasks = uxTaskGetNumberOfTasks();
 
-	if(totalTasks == 3){
-		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-		HAL_Delay(500);
-	}
-	if(totalTasks == 4){
-		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-		HAL_Delay(500);
+	while(1){
+		uint16_t totalTasks = 0;
+		totalTasks = uxTaskGetNumberOfTasks();
+
+		if(totalTasks == 3){
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+			HAL_Delay(500);
+		}
+		if(totalTasks == 4){
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+			HAL_Delay(500);
+		}
 	}
 }
 
