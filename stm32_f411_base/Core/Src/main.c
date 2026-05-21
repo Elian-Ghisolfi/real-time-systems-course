@@ -26,6 +26,7 @@
 #include "task.h"
 #include "semphr.h"
 #include "queue.h"
+#include <stdlib.h> // Para la función rand()
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,16 +37,12 @@ typedef struct {
 	uint32_t delay;
 }Led_Param_t;
 
-typedef struct {
-	uint16_t Led_ID;  // 0 a 3 para los 4 Leds
-	uint16_t on_off; // 1 ON y 2 OFF
+typedef struct{
+	TickType_t delay;
+	char mode_L_or_R;
+}Led_pattern_t;
 
-	uint64_t basura;
-	float basura2;
-	float basura3;
-	uint64_t basura4;
-
-}Led_Switch_t;
+typedef char Mode_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -55,7 +52,10 @@ typedef struct {
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define ITEM_SIZE_QUEUE_SPEED sizeof( TickType_t )
+#define ITEM_SIZE_QUEUE_MODE sizeof( Mode_t )
+#define INITIAL_SPEED pdMS_TO_TICKS(10)
+#define INITIAL_MODE 'D'
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -64,24 +64,22 @@ typedef struct {
 Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 500},	{GPIOD, GPIO_PIN_13, 500},
 							{GPIOD, GPIO_PIN_14, 500}, {GPIOD, GPIO_PIN_15, 500}};
 
-Led_Switch_t led_pattern[10] = {{0, 1}, {1, 1}, {2, 1}, {3, 1},
-							    {1, 0}, {3, 0}, {2, 0}, {0, 0},
-							    {1, 1}, {3, 1}};
+QueueSetHandle_t xqueueSet;
+QueueHandle_t queue_speed = NULL;
+QueueHandle_t queue_mode = NULL;
+QueueHandle_t queue_leds = NULL;
+SemaphoreHandle_t sem_button = NULL;
 
-QueueHandle_t queue_led_pattern = NULL;
-QueueHandle_t queue_led_pattern_point = NULL;
-
-
+Mode_t initial_mode;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 
-void vProducerTask(void * pvParameters);
-void vConsumerTask(void * pvParameters);
-
-void vProducer_PointerTask(void * pvParameters);
-void vConsumer_PointerTask(void * pvParameters);
+void vProducer_Speed_Task(void * pvParameters);
+void vProducer_Mode_Task(void * pvParameters);
+void vProcessTask(void * pvParameters);
+void vPattern_Leds(void * pvParameters);
 
 /* USER CODE BEGIN PFP */
 
@@ -123,17 +121,22 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
-  //queue_led_pattern = xQueueCreate(10, sizeof (Led_Switch_t));
+  queue_speed = xQueueCreate(4, ITEM_SIZE_QUEUE_SPEED);
+  queue_mode = xQueueCreate(4, ITEM_SIZE_QUEUE_MODE);
+  queue_leds = xQueueCreate(4, sizeof(Led_pattern_t));
+  sem_button = xSemaphoreCreateBinary();
 
-  //xTaskCreate(vConsumerTask, "Consumer", 100, &leds_param, 1, NULL);
-  //xTaskCreate(vProducerTask, "Producer", 100, &led_pattern, 1, NULL);
+  xqueueSet = xQueueCreateSet((UBaseType_t) 8);
 
-  // Aca vamos a comentar la segunda opcion
-  queue_led_pattern_point = xQueueCreate(10, sizeof(Led_Switch_t *));
+  xQueueAddToSet(queue_mode, xqueueSet);
+  xQueueAddToSet(queue_speed, xqueueSet);
 
-  // Creamos las tareas de la opción de punteros
-  xTaskCreate(vConsumer_PointerTask, "ConsumerPtr", 100, &leds_param, 1, NULL);
-  xTaskCreate(vProducer_PointerTask, "ProducerPtr", 100, &led_pattern, 1, NULL);
+
+  xTaskCreate(vProducer_Mode_Task, "Modo", 128, NULL, 2, NULL);
+  xTaskCreate(vProducer_Speed_Task, "Velocidad", 128, NULL, 2, NULL);
+  xTaskCreate(vProcessTask, "Core", 256, NULL, 1, NULL); // Prioridad baja para consumir
+
+  xTaskCreate(vPattern_Leds, "Leds", 128, NULL, 1, NULL);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -198,65 +201,117 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void vProducerTask(void * pvParameters){
-	Led_Switch_t pattern_send;
-	Led_Switch_t *px_pattern = (Led_Switch_t *) pvParameters;
+
+void vProducer_Speed_Task(void * pvParameters){
+	TickType_t random_speed;
 
 	while(1){
-		for (int var = 0; var < 10; ++var) {
-			pattern_send = px_pattern[var];
-			xQueueSend(queue_led_pattern, &pattern_send, portMAX_DELAY);
-			vTaskDelay(pdMS_TO_TICKS(500));
-		}
+		random_speed = pdMS_TO_TICKS(100 + rand() % 901);
+		xQueueSend(queue_speed, &random_speed, portMAX_DELAY);
+
+		vTaskDelay(pdMS_TO_TICKS(3000));
 	}
 }
 
-void vConsumerTask(void * pvParameters){
-	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
-	Led_Switch_t pattern_received;
+void vProducer_Mode_Task(void * pvParameters){
+	Mode_t pMode = INITIAL_MODE;
 
 	while(1){
-		if(xQueueReceive(queue_led_pattern, &pattern_received, portMAX_DELAY) == pdPASS){
 
-			if(pattern_received.on_off == 1){
-				HAL_GPIO_WritePin(pxParam[pattern_received.Led_ID].GPIO_puerto, pxParam[pattern_received.Led_ID].GPIO_pin, GPIO_PIN_SET);
+		if(xSemaphoreTake(sem_button, portMAX_DELAY)){
+			if(pMode == 'D'){
+				pMode = 'I';
+				xQueueSend(queue_mode, &pMode, portMAX_DELAY);
 			}else{
-				HAL_GPIO_WritePin(pxParam[pattern_received.Led_ID].GPIO_puerto, pxParam[pattern_received.Led_ID].GPIO_pin, GPIO_PIN_RESET);
+				pMode = 'D';
+				xQueueSend(queue_mode, &pMode, portMAX_DELAY);
 			}
-			vTaskDelay(pdMS_TO_TICKS(500));
 		}
 	}
 }
-void vProducer_PointerTask(void * pvParameters){
-    Led_Switch_t *px_pattern = (Led_Switch_t *) pvParameters;
-    Led_Switch_t *px_pattern_send;
 
-    while(1){
-        for (int var = 0; var < 10; ++var) {
-            px_pattern_send = &px_pattern[var];
-            xQueueSend(queue_led_pattern_point, &px_pattern_send, portMAX_DELAY);
+void vProcessTask(void * pvParameters){
+	TickType_t speed = INITIAL_SPEED;
+	Mode_t mode = INITIAL_MODE;
+	Led_pattern_t pattern;
 
-            vTaskDelay(pdMS_TO_TICKS(500));
-        }
-    }
+	QueueSetMemberHandle_t xActivatedMember;
+
+	while(1){
+		xActivatedMember = xQueueSelectFromSet(xqueueSet, portMAX_DELAY);
+
+		if(xActivatedMember == queue_speed){
+
+			xQueueReceive(queue_speed, &speed, 0);
+			pattern.delay = speed;
+			pattern.mode_L_or_R = mode;
+			xQueueSend(queue_leds, &pattern, 0);
+
+		}else if(xActivatedMember == queue_mode){
+
+			xQueueReceive(queue_mode, &mode, 0);
+			pattern.delay = speed;
+			pattern.mode_L_or_R = mode;
+			xQueueSend(queue_leds, &pattern, 0);
+		}
+	}
 }
 
-void vConsumer_PointerTask(void * pvParameters){
-    Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
-    Led_Switch_t *px_pattern_received;
+void vPattern_Leds(void * pvParameters){
+	Led_pattern_t led_Pattern;
+	Led_pattern_t aux;
+	led_Pattern.delay = INITIAL_SPEED;
+	led_Pattern.mode_L_or_R = initial_mode;
+	int8_t led_pos = 0;
+	TickType_t xLastWakeTime = xTaskGetTickCount();
 
-    while(1){
-        if(xQueueReceive(queue_led_pattern_point, &px_pattern_received, portMAX_DELAY) == pdPASS){
-            if(px_pattern_received->on_off == 1){
-                HAL_GPIO_WritePin(pxParam[px_pattern_received->Led_ID].GPIO_puerto, pxParam[px_pattern_received->Led_ID].GPIO_pin, GPIO_PIN_SET);
-            }else{
-                HAL_GPIO_WritePin(pxParam[px_pattern_received->Led_ID].GPIO_puerto, pxParam[px_pattern_received->Led_ID].GPIO_pin, GPIO_PIN_RESET);
-            }
-            vTaskDelay(pdMS_TO_TICKS(500));
-        }
-    }
+	while(1){
+
+		if(xQueueReceive(queue_leds, &aux, 0) == pdPASS){
+			led_Pattern.delay = aux.delay;
+			led_Pattern.mode_L_or_R = aux.mode_L_or_R;
+		}
+
+
+
+		// Lógica de desplazamiento
+		if(led_Pattern.mode_L_or_R == 'D') {
+			led_pos++;
+			if(led_pos > 3) led_pos = 0;
+		} else {
+			led_pos--;
+			if(led_pos < 0) led_pos = 3;
+		}
+
+		// Apagar todos los LEDs
+		for (int var = 0; var < 4; ++var) {
+			HAL_GPIO_WritePin(leds_param[var].GPIO_puerto, leds_param[var].GPIO_pin, GPIO_PIN_RESET);
+		}
+
+		// Encender el correspondiente
+		if(led_pos == 0) HAL_GPIO_WritePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 1) HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 2) HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 3) HAL_GPIO_WritePin(leds_param[3].GPIO_puerto, leds_param[3].GPIO_pin, GPIO_PIN_SET);
+
+		vTaskDelayUntil(&xLastWakeTime ,led_Pattern.delay);
+	}
 }
 
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+
+	if(GPIO_Pin == GPIO_PIN_0){
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+		xSemaphoreGiveFromISR(sem_button, &xHigherPriorityTaskWoken);
+
+		/* 5. Si xHigherPriorityTaskWoken se puso en pdTRUE, forzamos un cambio de contexto
+		* para que al salir de la interrupción entremos directo a la tarea del botón. */
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
+
+}
 /* USER CODE END 4 */
 
 /**
