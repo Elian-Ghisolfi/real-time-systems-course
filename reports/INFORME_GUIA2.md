@@ -4,3 +4,167 @@ practical exercises and projects of the real-time systems course
 Estoy organizando mi repositorio de github de estos trabajos voy a tener una carpeta con reportes de cada guía de trabajo, la idea es tener un readme.md que me introduzca el repositorio guiando a cada reporte por cada guía de trabajo que son las siguientes:
 
 Guia 1
+
+## Desafío 1
+
+**Preguntas**: Transferir datos entre tareas de forma segura. ¿Qué sucede si la tarea consumidora es más lenta que la productora? ¿Cómo
+afecta el tamaño de la cola?
+
+### Análisis: 
+
+Aca introducimos las colas como mecanismo de envío de datos desde una tarea productora a una consumidora.
+
+```c
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if(GPIO_Pin == GPIO_PIN_0){
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		xSemaphoreGiveFromISR(semaphored_button, &xHigherPriorityTaskWoken);
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
+
+}
+void vProducerTask(void * pvParameters){
+	uint16_t button_count = 0;
+
+	while(1){
+		if(xSemaphoreTake(semaphored_button, portMAX_DELAY) == pdPASS){
+			button_count ++;
+			xQueueSend(queue_button, &button_count, portMAX_DELAY);
+		}
+	}
+}
+void vConsumerTask(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+	uint16_t count_receive = 0;
+	uint8_t leds[4];
+
+	while(1){
+		if(xQueueReceive(queue_button, &count_receive, portMAX_DELAY) == pdPASS){
+			leds[0] = (count_receive / 1) % 2;
+			leds[1] = (count_receive / 2) % 2;
+			leds[2] = (count_receive / 4) % 2;
+			leds[3] = (count_receive / 8) % 2;
+
+			for (int var = 0; var < 4; ++var) {
+				if(leds[var] == 1){
+					HAL_GPIO_WritePin(pxParam[var].GPIO_puerto, pxParam[var].GPIO_pin, GPIO_PIN_SET);
+				}else{
+					HAL_GPIO_WritePin(pxParam[var].GPIO_puerto, pxParam[var].GPIO_pin, GPIO_PIN_RESET);
+				}
+			}
+		}
+	}
+}
+```
+
+Si la tarea Consumidora es más lenta (por ejemplo, porque tarda en procesar el dato o controlar los LEDs), la `Queue` comenzará a llenarse. El comportamiento exacto dependerá del parámetro `xTicksToWait`  de la función `xQueueSend()` en la tarea Productora. El tamaño de la cola actúa como un amortiguador o pequeño buffer para gestionar ráfagas de datos, pero aumentar el tamaño de la cola no soluciona el problema si la tasa media de producción es consistentemente mayor que la tasa media de consumo. En ese caso, sin importar cuán grande sea la cola, eventualmente se llenará.
+
+
+## Desafío 2
+
+**Preguntas**: Gestionar múltiples datos en un solo mensaje. Comparar el uso de memoria de enviar una estructura por copia frente a enviar un
+puntero a la estructura.
+
+### Análisis: 
+
+En este desafío introducimos un concepto importante que es el manejo de memoria ya que muchas veces el hardware donde corre nuestra aplicación tiene recursos limitados. Para ello hicimos una estructura con datos basura para simular un sensor pesado y tareas espejos pero que manejan los datos de diferentes forma y calculamos aproximadamente cuanto nos ahorramos de memoria.
+
+```c
+typedef struct {
+	uint16_t Led_ID;  // 0 a 3 para los 4 Leds
+	uint16_t on_off; // 1 ON y 2 OFF
+
+	uint64_t basura; // simulamos otros datos basura
+	float basura2;
+	float basura3;
+	uint64_t basura4;
+
+}Led_Switch_t;
+
+void vProducerTask(void * pvParameters){
+	Led_Switch_t pattern_send;
+	Led_Switch_t *px_pattern = (Led_Switch_t *) pvParameters;
+
+	while(1){
+		for (int var = 0; var < 10; ++var) {
+			pattern_send = px_pattern[var];
+			xQueueSend(queue_led_pattern, &pattern_send, portMAX_DELAY);
+			vTaskDelay(pdMS_TO_TICKS(500));
+		}
+	}
+}
+void vConsumerTask(void * pvParameters){
+	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+	Led_Switch_t pattern_received;
+
+	while(1){
+		if(xQueueReceive(queue_led_pattern, &pattern_received, portMAX_DELAY) == pdPASS){
+
+			if(pattern_received.on_off == 1){
+				HAL_GPIO_WritePin(pxParam[pattern_received.Led_ID].GPIO_puerto, pxParam[pattern_received.Led_ID].GPIO_pin, GPIO_PIN_SET);
+			}else{
+				HAL_GPIO_WritePin(pxParam[pattern_received.Led_ID].GPIO_puerto, pxParam[pattern_received.Led_ID].GPIO_pin, GPIO_PIN_RESET);
+			}
+			vTaskDelay(pdMS_TO_TICKS(500));
+		}
+	}
+}
+void vProducer_PointerTask(void * pvParameters){
+    Led_Switch_t *px_pattern = (Led_Switch_t *) pvParameters;
+    Led_Switch_t *px_pattern_send;
+
+    while(1){
+        for (int var = 0; var < 10; ++var) {
+            px_pattern_send = &px_pattern[var];
+            xQueueSend(queue_led_pattern_point, &px_pattern_send, portMAX_DELAY);
+
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+    }
+}
+void vConsumer_PointerTask(void * pvParameters){
+    Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
+    Led_Switch_t *px_pattern_received;
+
+    while(1){
+        if(xQueueReceive(queue_led_pattern_point, &px_pattern_received, portMAX_DELAY) == pdPASS){
+            if(px_pattern_received->on_off == 1){
+                HAL_GPIO_WritePin(pxParam[px_pattern_received->Led_ID].GPIO_puerto, pxParam[px_pattern_received->Led_ID].GPIO_pin, GPIO_PIN_SET);
+            }else{
+                HAL_GPIO_WritePin(pxParam[px_pattern_received->Led_ID].GPIO_puerto, pxParam[px_pattern_received->Led_ID].GPIO_pin, GPIO_PIN_RESET);
+            }
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+    }
+}
+```
+Cuando FreeRTOS crea una cola (xQueueCreate), reserva memoria. La fórmula es: (Tamaño del item * Longitud de la cola) + Estructura de control de la cola.
+
+- Opción 1: Paso por Valor (Estructura completa)
+
+    Creación: xQueueCreate(10, sizeof(Led_Switch_t))
+
+    Consumo de la cola: 10 items * 32 bytes/item = 320 bytes.
+
+- Opción 2: Paso por Referencia (Punteros)
+
+    Creación: xQueueCreate(10, sizeof(Led_Switch_t *))
+
+    Tamaño de un puntero en STM32: Siempre 4 bytes (porque es un sistema de 32 bits).
+
+    Consumo de la cola: 10 items * 4 bytes/item = 40 bytes.
+
+Aca podemos ver como pasar una referencia de un dato nos ahorra mucho espacio de memoria RAM y ciclos de CPU ya que no gastamos en copiar cada estructura. 
+
+## Desafío 3
+
+**Preguntas**: ¿Qué ventaja tiene usar un Queue Set frente a realizar un "Polling" con un
+xQueueReceive de tiempo de espera cero sobre cada cola? ¿Cómo influye el tamaño de
+las colas individuales en el comportamiento del Set?
+
+### Análisis: 
+
+En este desafío vamos ver como podemos generar un flujo de datos donde las una tarea Procesadora espera datos de diversos orígenes y enviándola en el formato necesario a una tarea principal (la de LEDS).
+
+![Diagrama de Flujo Desafío 3](../images/DF_Guia2_Def3.jpg "Diagrama de Flujo Desafío 3")
+

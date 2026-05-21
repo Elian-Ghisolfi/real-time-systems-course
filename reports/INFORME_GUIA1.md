@@ -11,7 +11,7 @@ periodos de conmutación más pequeños: 20ms, 40ms, 60ms y 80ms)
 
 Para este desafío realizamos 4 prototipos de tareas para dejar en claro una *Mala práctica* y no utilizar la posibilidad de pasarle parámetros a las mismas.
 
-```
+```c
 void vTaskLed1(void * pvParameters);
 void vTaskLed2(void * pvParameters);
 void vTaskLed3(void * pvParameters);
@@ -48,7 +48,7 @@ Los tiempos que vemos no son precisos ya que al tener todas la misma prioridad e
 
 Para este desafío empezamos a parametrizar las configuraciones y los parámetros de los LEDS (en el futuro serán otros periféricos) y empezamos a definir tareas más generales para solo tener instancias de la misma.
 
-```
+```c
 ESTRUCTURA DE PARÁMETROS DE LOS LEDS
 typedef struct {
 	GPIO_TypeDef* GPIO_puerto;
@@ -82,8 +82,8 @@ Con un osciloscopio podríamos ver los tiempos de onda y calcular el tiempo que 
 
 Para este desafío empezamos a introducir nuevos periféricos y la forma de poder interactuar con ellos. La manera que vamos a ver es la de Polling pero para evitar el starvation la tarea de alta prioridad `vPollingButton()` debe liberar voluntariamente la CPU. Al llamar a `vTaskDelay()`, la tarea del botón pasa al estado Blocked. Mientras está bloqueada, consume 0% de CPU, permitiendo que la tarea del LED (baja prioridad) se ejecute.
 
-```
-TAREA ENCARGADA DE HACER POLLING SIN STARVATION
+```c
+// TAREA ENCARGADA DE HACER POLLING SIN STARVATION
 
 void vPollingButton(void * pvParameters){
 	GPIO_PinState status_button;
@@ -114,7 +114,7 @@ Para respetar el tiempo de respuesta del LED 2 y que no supere los 10 ms, la tar
 
 Para este desafío vamos a introducir el análisis de los tiempos de delay y de cuándo se inicia el conteo de los mismos. Para ello usaremos dos tareas que parecen similares pero son conceptualmente diferentes. Mientras que `xTaskDelay()` cuenta el tiempo desde que es llamada sin importarle lo que sucede en el medio (tiempos de lectura de periféricos, procesamientos de datos, etc), el servicio `xTaskDelayUntil()` resuelve el problema especificando la hora exacta en la que la tarea debe desbloquearse, sin importar cuánto tardó en ejecutarse el código previo (siempre y cuando el código tarde menos que el periodo total).
 
-```
+```c
 void vTareaParpadeo_Delay(void * pvParameters){
 	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
 
@@ -172,7 +172,7 @@ el enunciado en el primer intento? De no ser así, ¿por qué?
 
 En este desafío nos introducimos a cómo el scheduler (y su configuración) determinan qué tareas se van a procesar teniendo en cuenta principalmente *la prioridad*.
 
-```
+```c
 int main(){
 	xTaskCreate(vTareaParpadeo_Delay, "Tarea_LedA", 100, (void *) &LedA_delay, 1, &xTarea_LedA_handle);
   	xTaskCreate(vTareaParpadeo_Delay, "Tarea_LedB", 100, (void *) &LedB_delay, 1, NULL);
@@ -230,7 +230,7 @@ En este desafío nos introducimos en las interrupciones para solucionar el caso 
 - La ISR simplemente avisa a una tarea que el evento ocurrió (desbloqueándola) y termina inmediatamente. Para enviar este "aviso" desde la ISR a la Tarea, utilizamos un Semáforo Binario.
 - La Tarea, que estaba en estado Blocked, consumiendo 0 CPU, se despierta y realiza el trabajo pesado.
 
-```
+```c
 Led_Param_t param_Led3 = {GPIOD, GPIO_PIN_14, 50};
 Led_Param_t param_Led4 = {GPIOD, GPIO_PIN_15, 0}; // Para la tarea mínima de scheduler (Tarea Idle)
 
@@ -284,7 +284,7 @@ Activaremos el Idle Hook y haremos que parpadee un LED. Este seguirá parpadeand
 
 En este desafío vamos a ver cómo varias tareas se pueden sincronizar entre ellas gracias a los *semáforos*. Vamos a utilizar la idea de un círculo y cada tarea toma un semáforo para luego desbloquear el de la tarea siguiente. 
 
-```
+```c
 int main(){
   if((semaphore_L2_L3 != NULL) && (semaphore_L3_L4 != NULL) && (semaphore_L4_L2 != NULL)){
 
@@ -336,7 +336,7 @@ para contar los tiempos asociados a una secuencia? ¿Por qué? Reescriba el ejer
 
 En este desafío vamos a utilizar un mutex para sincronizar dos secuencias diferentes de LEDS. Ya que es crítico el uso de los LEDS todo queda bajo el control del mutex y la otra tarea que quiera hacer uso de ellos deberá esperar el recurso. 
 
-```
+```c
 const Led_Param_t leds[4] = {{GPIOD, GPIO_PIN_12, 500},	{GPIOD, GPIO_PIN_13, 500}, {GPIOD, GPIO_PIN_14, 600}, {GPIOD, GPIO_PIN_15, 800}};
 int main(){
 
@@ -420,7 +420,7 @@ el mejor tiempo de respuesta? ¿Está seguro?
 
 En este desafío vamos a introducir el estado que nos faltaba por usar: el de *Suspended*. Vamos a tener una tarea con mayor prioridad que va a suspender a otra luego de que un periférico realice una interrupción. 
 
-```
+```c
 TaskHandle_t xHandleTaskA = NULL;
 SemaphoreHandle_t Semaphored_button = NULL;
 
@@ -494,7 +494,7 @@ El resultado es ver parpadear los LEDs. Al pulsar el botón, la ejecución de la
 
 Finalmente en este desafío vemos cómo es posible eliminar de la memoria las tareas que instanciamos ya que en algunos casos queremos que tengan una vida útil y no acaparen recursos de memoria. 
 
-```
+```c
 void vBlinkyLedsSecuence(void * pvParameters){
 	Led_Param_t *pxParam = (Led_Param_t *) pvParameters;
 	TickType_t LastWakeTime;
