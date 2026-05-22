@@ -2,8 +2,8 @@
 ../Core/Src/main.c:166:6:SystemClock_Config	3
 ../Core/Src/main.c:205:6:vProducer_Speed_Task	1
 ../Core/Src/main.c:216:6:vProducer_Mode_Task	3
-../Core/Src/main.c:233:6:vProcessTask	3
-../Core/Src/main.c:260:6:vPattern_Leds	10
-../Core/Src/main.c:302:6:HAL_GPIO_EXTI_Callback	3
-../Core/Src/main.c:325:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:343:6:Error_Handler	1
+../Core/Src/main.c:238:6:vProcessTask	3
+../Core/Src/main.c:265:6:vPattern_Leds	10
+../Core/Src/main.c:305:6:HAL_GPIO_EXTI_Callback	3
+../Core/Src/main.c:328:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:346:6:Error_Handler	1

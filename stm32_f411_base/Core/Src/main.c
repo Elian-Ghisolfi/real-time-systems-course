@@ -70,7 +70,7 @@ QueueHandle_t queue_mode = NULL;
 QueueHandle_t queue_leds = NULL;
 SemaphoreHandle_t sem_button = NULL;
 
-Mode_t initial_mode;
+Mode_t mode_define;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -123,7 +123,7 @@ int main(void)
 
   queue_speed = xQueueCreate(4, ITEM_SIZE_QUEUE_SPEED);
   queue_mode = xQueueCreate(4, ITEM_SIZE_QUEUE_MODE);
-  queue_leds = xQueueCreate(4, sizeof(Led_pattern_t));
+  queue_leds = xQueueCreate(15, sizeof(Led_pattern_t));
   sem_button = xSemaphoreCreateBinary();
 
   xqueueSet = xQueueCreateSet((UBaseType_t) 8);
@@ -131,12 +131,12 @@ int main(void)
   xQueueAddToSet(queue_mode, xqueueSet);
   xQueueAddToSet(queue_speed, xqueueSet);
 
+  mode_define = INITIAL_MODE;
+  xTaskCreate(vProducer_Mode_Task, "Modo", 100, NULL, 2, NULL);
+  xTaskCreate(vProducer_Speed_Task, "Velocidad", 100, NULL, 2, NULL);
+  xTaskCreate(vProcessTask, "Core", 100, NULL, 1, NULL); // Prioridad baja para consumir
 
-  xTaskCreate(vProducer_Mode_Task, "Modo", 128, NULL, 2, NULL);
-  xTaskCreate(vProducer_Speed_Task, "Velocidad", 128, NULL, 2, NULL);
-  xTaskCreate(vProcessTask, "Core", 256, NULL, 1, NULL); // Prioridad baja para consumir
-
-  xTaskCreate(vPattern_Leds, "Leds", 128, NULL, 1, NULL);
+  xTaskCreate(vPattern_Leds, "Leds", 100, NULL, 1, NULL);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -218,14 +218,19 @@ void vProducer_Mode_Task(void * pvParameters){
 
 	while(1){
 
-		if(xSemaphoreTake(sem_button, portMAX_DELAY)){
+		if(xSemaphoreTake(sem_button, portMAX_DELAY) == pdPASS){
 			if(pMode == 'D'){
 				pMode = 'I';
-				xQueueSend(queue_mode, &pMode, portMAX_DELAY);
 			}else{
 				pMode = 'D';
-				xQueueSend(queue_mode, &pMode, portMAX_DELAY);
 			}
+			xQueueSend(queue_mode, &pMode, portMAX_DELAY);
+			// Bloqueamos la tarea 200ms para ignorar ruidos mecánicos.
+			vTaskDelay(pdMS_TO_TICKS(100));
+
+			// "Limpiamos" el semáforo por si la interrupción se disparó
+			// durante los 200ms de delay y dejó el semáforo en verde de forma errónea.
+			xSemaphoreTake(sem_button, 0);
 		}
 	}
 }
@@ -261,18 +266,16 @@ void vPattern_Leds(void * pvParameters){
 	Led_pattern_t led_Pattern;
 	Led_pattern_t aux;
 	led_Pattern.delay = INITIAL_SPEED;
-	led_Pattern.mode_L_or_R = initial_mode;
+	led_Pattern.mode_L_or_R = INITIAL_MODE;
 	int8_t led_pos = 0;
 	TickType_t xLastWakeTime = xTaskGetTickCount();
 
 	while(1){
 
-		if(xQueueReceive(queue_leds, &aux, 0) == pdPASS){
+		while(xQueueReceive(queue_leds, &aux, 0) == pdPASS){
 			led_Pattern.delay = aux.delay;
 			led_Pattern.mode_L_or_R = aux.mode_L_or_R;
 		}
-
-
 
 		// Lógica de desplazamiento
 		if(led_Pattern.mode_L_or_R == 'D') {
