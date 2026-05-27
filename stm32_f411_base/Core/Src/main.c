@@ -38,11 +38,9 @@ typedef struct {
 }Led_Param_t;
 
 typedef struct{
-	TickType_t delay;
-	char mode_L_or_R;
-}Led_pattern_t;
+	uint16_t led_count;
+}Led_counter_t;
 
-typedef char Mode_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -52,33 +50,35 @@ typedef char Mode_t;
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define ITEM_SIZE_QUEUE_SPEED sizeof( TickType_t )
-#define ITEM_SIZE_QUEUE_MODE sizeof( Mode_t )
-#define INITIAL_SPEED pdMS_TO_TICKS(10)
-#define INITIAL_MODE 'D'
+#define ITEM_SIZE_GLOBAL_QUEUE sizeof( Led_counter_t )
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 500},	{GPIOD, GPIO_PIN_13, 500},
-							{GPIOD, GPIO_PIN_14, 500}, {GPIOD, GPIO_PIN_15, 500}};
+Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 5000},	{GPIOD, GPIO_PIN_13, 5000},
+							{GPIOD, GPIO_PIN_14, 5000}, {GPIOD, GPIO_PIN_15, 5000}};
 
-QueueSetHandle_t xqueueSet;
-QueueHandle_t queue_speed = NULL;
-QueueHandle_t queue_mode = NULL;
-QueueHandle_t queue_leds = NULL;
-SemaphoreHandle_t sem_button = NULL;
+QueueSetHandle_t xQueueSet;
+QueueHandle_t xQueueLed1;
+QueueHandle_t xQueueLed2;
 
-Mode_t mode_define;
+QueueHandle_t xGlobalQueue;
+
+SemaphoreHandle_t xSemButton = NULL;
+
+SemaphoreHandle_t xSemControl1 = NULL;
+SemaphoreHandle_t xSemControl2 = NULL;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void vProducer_Mode_Task(void *pvParameters);
-void vProducer_Speed_Task(void *pvParameters);
-void vProcessTask(void *pvParameters);
+void vProducerCountTask(void *pvParameters);
+void vProcessLed1Task(void *pvParameters);
+void vProcessLed2Task(void *pvParameters);
+void vTrashCountTask(void *pvParameters);
+
 void vPattern_Leds(void *pvParameters);
 /* USER CODE END PFP */
 
@@ -118,21 +118,25 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
-  queue_speed = xQueueCreate(4, ITEM_SIZE_QUEUE_SPEED);
-  queue_mode = xQueueCreate(4, ITEM_SIZE_QUEUE_MODE);
-  queue_leds = xQueueCreate(15, sizeof(Led_pattern_t));
-  sem_button = xSemaphoreCreateBinary();
+  xSemButton = xSemaphoreCreateBinary();
+  xSemControl1 = xSemaphoreCreateBinary();
+  xSemControl2 = xSemaphoreCreateBinary();
 
-  xqueueSet = xQueueCreateSet((UBaseType_t) 8);
+  xQueueLed1 = xQueueCreate(5, ITEM_SIZE_GLOBAL_QUEUE);
+  xQueueLed2 = xQueueCreate(5, ITEM_SIZE_GLOBAL_QUEUE);
+  xGlobalQueue = xQueueCreate(1, ITEM_SIZE_GLOBAL_QUEUE);
 
-  xQueueAddToSet(queue_mode, xqueueSet);
-  xQueueAddToSet(queue_speed, xqueueSet);
+  xQueueSet = xQueueCreateSet((UBaseType_t) 10);
+  xQueueAddToSet(xQueueLed1, xQueueSet);
+  xQueueAddToSet(xQueueLed2, xQueueSet);
 
-  mode_define = INITIAL_MODE;
-  xTaskCreate(vProducer_Mode_Task, "Modo", 100, NULL, 2, NULL);
-  xTaskCreate(vProducer_Speed_Task, "Velocidad", 100, NULL, 2, NULL);
-  xTaskCreate(vProcessTask, "Core", 100, NULL, 1, NULL); // Prioridad baja para consumir
 
+  xTaskCreate(vProducerCountTask, "Producer Count", 100, NULL, 2, NULL);
+
+  xTaskCreate(vProcessLed1Task, "Process Led1", 100, NULL, 1, NULL);
+  xTaskCreate(vProcessLed2Task, "Process Led2", 100, NULL, 1, NULL);
+
+  xTaskCreate(vTrashCountTask, "Task Recolect", 100, NULL, 1, NULL);
   xTaskCreate(vPattern_Leds, "Leds", 100, NULL, 1, NULL);
 
   /* Start scheduler */
@@ -198,84 +202,76 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-void vProducer_Speed_Task(void * pvParameters){
-	TickType_t random_speed;
-
-	while(1){
-		random_speed = pdMS_TO_TICKS(100 + rand() % 901);
-		xQueueSend(queue_speed, &random_speed, portMAX_DELAY);
-
-		vTaskDelay(pdMS_TO_TICKS(3000));
-	}
-}
-void vProducer_Mode_Task(void * pvParameters){
-	Mode_t pMode = INITIAL_MODE;
+void vProducerCountTask(void * pvParameters){
+	uint16_t aux_count = 0;
 
 	while(1){
 
-		if(xSemaphoreTake(sem_button, portMAX_DELAY) == pdPASS){
-			if(pMode == 'D'){
-				pMode = 'I';
-			}else{
-				pMode = 'D';
-			}
-			xQueueSend(queue_mode, &pMode, portMAX_DELAY);
-			// Bloqueamos la tarea 200ms para ignorar ruidos mecánicos.
-			vTaskDelay(pdMS_TO_TICKS(100));
-
+		if(xSemaphoreTake(xSemButton, portMAX_DELAY) == pdPASS){
+			aux_count = aux_count + 1;
+			xQueueOverwrite(xGlobalQueue, &aux_count);
+			// Bloqueamos la tarea 50ms para ignorar ruidos mecánicos.
+			vTaskDelay(pdMS_TO_TICKS(300));
 			// "Limpiamos" el semáforo por si la interrupción se disparó
 			// durante los 200ms de delay y dejó el semáforo en verde de forma errónea.
-			xSemaphoreTake(sem_button, 0);
+			xSemaphoreTake(xSemButton, 0);
 		}
 	}
 }
-void vProcessTask(void * pvParameters){
-	TickType_t speed = INITIAL_SPEED;
-	Mode_t mode = INITIAL_MODE;
-	Led_pattern_t pattern;
+void vProcessLed1Task(void *pvParameters){
+	uint16_t count_peek = 0;
+	uint16_t led_pos = 0;
 
+	while(1){
+		xQueuePeek(xGlobalQueue, &count_peek, portMAX_DELAY);
+		led_pos = count_peek % 2;
+		if(led_pos == 1 ){
+			xQueueSend(xQueueLed1, &led_pos, 0);
+		}
+		xSemaphoreGive(xSemControl1);
+
+		vTaskDelay(pdMS_TO_TICKS(100));
+	}
+}
+
+void vProcessLed2Task(void *pvParameters){
+	uint16_t count_peek = 0;
+	uint16_t led_pos = 0;
+
+	while(1){
+		xQueuePeek(xGlobalQueue, &count_peek, portMAX_DELAY);
+		led_pos = count_peek % 2;
+		if(led_pos == 0 ){
+			xQueueSend(xQueueLed2, &led_pos, 0);
+		}
+		xSemaphoreGive(xSemControl2);
+
+		vTaskDelay(pdMS_TO_TICKS(100));
+	}
+}
+void vTrashCountTask(void *pvParameters){
+	uint16_t aux_trash_count;
+
+	while(1){
+		xSemaphoreTake(xSemControl1, portMAX_DELAY);
+		xSemaphoreTake(xSemControl2, portMAX_DELAY);
+
+		xQueueReceive(xGlobalQueue, &aux_trash_count, 0);
+	}
+}
+
+void vPattern_Leds(void * pvParameters){
+	int8_t led_pos = 3;
+	TickType_t xLastWakeTime = xTaskGetTickCount();
 	QueueSetMemberHandle_t xActivatedMember;
 
 	while(1){
-		xActivatedMember = xQueueSelectFromSet(xqueueSet, portMAX_DELAY);
 
-		if(xActivatedMember == queue_speed){
-
-			xQueueReceive(queue_speed, &speed, 0);
-			pattern.delay = speed;
-			pattern.mode_L_or_R = mode;
-
-		}else if(xActivatedMember == queue_mode){
-
-			xQueueReceive(queue_mode, &mode, 0);
-			pattern.delay = speed;
-			pattern.mode_L_or_R = mode;
-		}
-		xQueueSend(queue_leds, &pattern, 0);
-	}
-}
-void vPattern_Leds(void * pvParameters){
-	Led_pattern_t led_Pattern;
-	Led_pattern_t aux;
-	led_Pattern.delay = INITIAL_SPEED;
-	led_Pattern.mode_L_or_R = INITIAL_MODE;
-	int8_t led_pos = 0;
-	TickType_t xLastWakeTime = xTaskGetTickCount();
-
-	while(1){
-
-		while(xQueueReceive(queue_leds, &aux, 0) == pdPASS){
-			led_Pattern.delay = aux.delay;
-			led_Pattern.mode_L_or_R = aux.mode_L_or_R;
-		}
-
-		// Lógica de desplazamiento
-		if(led_Pattern.mode_L_or_R == 'D') {
-			led_pos++;
-			if(led_pos > 3) led_pos = 0;
-		} else {
-			led_pos--;
-			if(led_pos < 0) led_pos = 3;
+		xActivatedMember = xQueueSelectFromSet(xQueueSet, portMAX_DELAY);
+		if(xActivatedMember == xQueueLed1){
+			xQueueReceive(xQueueLed1, &led_pos, 0);
+		}else if(xActivatedMember == xQueueLed2){
+			xQueueReceive(xQueueLed2, &led_pos, 0);
 		}
 
 		// Apagar todos los LEDs
@@ -285,11 +281,9 @@ void vPattern_Leds(void * pvParameters){
 
 		// Encender el correspondiente
 		if(led_pos == 0) HAL_GPIO_WritePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin, GPIO_PIN_SET);
-		if(led_pos == 1) HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_SET);
-		if(led_pos == 2) HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
-		if(led_pos == 3) HAL_GPIO_WritePin(leds_param[3].GPIO_puerto, leds_param[3].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 1) HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
 
-		vTaskDelayUntil(&xLastWakeTime ,led_Pattern.delay);
+		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
 	}
 }
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
@@ -297,7 +291,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	if(GPIO_Pin == GPIO_PIN_0){
 		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-		xSemaphoreGiveFromISR(sem_button, &xHigherPriorityTaskWoken);
+		xSemaphoreGiveFromISR(xSemButton, &xHigherPriorityTaskWoken);
 
 		/* 5. Si xHigherPriorityTaskWoken se puso en pdTRUE, forzamos un cambio de contexto
 		* para que al salir de la interrupción entremos directo a la tarea del botón. */

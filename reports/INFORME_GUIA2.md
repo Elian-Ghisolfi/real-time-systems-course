@@ -258,16 +258,98 @@ void vPattern_Leds(void * pvParameters){
 		vTaskDelayUntil(&xLastWakeTime ,led_Pattern.delay);
 	}
 }
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	if(GPIO_Pin == GPIO_PIN_0){
-		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+```
+## Desafío 4
 
-		xSemaphoreGiveFromISR(sem_button, &xHigherPriorityTaskWoken);
+**Preguntas**: ¿Qué sucede si una tarea usa xQueueReceive() en lugar de xQueuePeek()?
+¿Cómo se aseguran de que ambas tareas leyeron el mismo dato antes de que este sea
+eliminado de la cola?
 
-		/* 5. Si xHigherPriorityTaskWoken se puso en pdTRUE, forzamos un cambio de contexto
-		* para que al salir de la interrupción entremos directo a la tarea del botón. */
-		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+### Análisis: 
+
+En este desafío vamos ver como podemos generar un flujo de datos donde múltiples tareas accedan a la misma información sin "consumirla" de
+la cola, permitiendo un procesamiento paralelo de un mismo evento. Simulando un `Mail Box`
+
+![Diagrama de Flujo Desafío 4](../images/DF_Guia2_Def4.jpg "Diagrama de Flujo Desafío 4")
+
+```c
+void vProducerCountTask(void * pvParameters){
+	uint16_t aux_count = 0;
+	while(1){
+
+		if(xSemaphoreTake(xSemButton, portMAX_DELAY) == pdPASS){
+			aux_count = aux_count + 1;
+			xQueueOverwrite(xGlobalQueue, &aux_count);
+			// Bloqueamos la tarea 50ms para ignorar ruidos mecánicos.
+			vTaskDelay(pdMS_TO_TICKS(300));
+			// "Limpiamos" el semáforo por si la interrupción se disparó
+			// durante los 200ms de delay y dejó el semáforo en verde de forma errónea.
+			xSemaphoreTake(xSemButton, 0);
+		}
 	}
+}
+void vProcessLed1Task(void *pvParameters){
+	uint16_t count_peek = 0;
+	uint16_t led_pos = 0;
 
+	while(1){
+		xQueuePeek(xGlobalQueue, &count_peek, portMAX_DELAY);
+		led_pos = count_peek % 2;
+		if(led_pos == 1 ){
+			xQueueSend(xQueueLed1, &led_pos, 0);
+		}
+		xSemaphoreGive(xSemControl1);
+
+		vTaskDelay(pdMS_TO_TICKS(100));
+	}
+}
+void vProcessLed2Task(void *pvParameters){
+	uint16_t count_peek = 0;
+	uint16_t led_pos = 0;
+
+	while(1){
+		xQueuePeek(xGlobalQueue, &count_peek, portMAX_DELAY);
+		led_pos = count_peek % 2;
+		if(led_pos == 0 ){
+			xQueueSend(xQueueLed2, &led_pos, 0);
+		}
+		xSemaphoreGive(xSemControl2);
+		vTaskDelay(pdMS_TO_TICKS(100));
+	}
+}
+void vTrashCountTask(void *pvParameters){
+	uint16_t aux_trash_count;
+
+	while(1){
+		xSemaphoreTake(xSemControl1, portMAX_DELAY);
+		xSemaphoreTake(xSemControl2, portMAX_DELAY);
+
+		xQueueReceive(xGlobalQueue, &aux_trash_count, 0);
+	}
+}
+
+void vPattern_Leds(void * pvParameters){
+	int8_t led_pos = 3;
+	TickType_t xLastWakeTime = xTaskGetTickCount();
+	QueueSetMemberHandle_t xActivatedMember;
+	while(1){
+		xActivatedMember = xQueueSelectFromSet(xQueueSet, portMAX_DELAY);
+		if(xActivatedMember == xQueueLed1){
+			xQueueReceive(xQueueLed1, &led_pos, 0);
+		}else if(xActivatedMember == xQueueLed2){
+			xQueueReceive(xQueueLed2, &led_pos, 0);
+		}
+
+		// Apagar todos los LEDs
+		for (int var = 0; var < 4; ++var) {
+			HAL_GPIO_WritePin(leds_param[var].GPIO_puerto, leds_param[var].GPIO_pin, GPIO_PIN_RESET);
+		}
+
+		// Encender el correspondiente
+		if(led_pos == 0) HAL_GPIO_WritePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 1) HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
+
+		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
+	}
 }
 ```
