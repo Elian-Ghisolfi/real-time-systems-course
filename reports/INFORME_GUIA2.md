@@ -168,3 +168,106 @@ En este desafío vamos ver como podemos generar un flujo de datos donde las una 
 
 ![Diagrama de Flujo Desafío 3](../images/DF_Guia2_Def3.jpg "Diagrama de Flujo Desafío 3")
 
+
+```c
+void vProducer_Speed_Task(void * pvParameters){
+	TickType_t random_speed;
+	while(1){
+		random_speed = pdMS_TO_TICKS(100 + rand() % 901);
+		xQueueSend(queue_speed, &random_speed, portMAX_DELAY);
+
+		vTaskDelay(pdMS_TO_TICKS(3000));
+	}
+}
+void vProducer_Mode_Task(void * pvParameters){
+	Mode_t pMode = INITIAL_MODE;
+	while(1){
+		if(xSemaphoreTake(sem_button, portMAX_DELAY) == pdPASS){
+			if(pMode == 'D'){
+				pMode = 'I';
+			}else{
+				pMode = 'D';
+			}
+			xQueueSend(queue_mode, &pMode, portMAX_DELAY);
+			// Bloqueamos la tarea 200ms para ignorar ruidos mecánicos.
+			vTaskDelay(pdMS_TO_TICKS(100));
+
+			// "Limpiamos" el semáforo por si la interrupción se disparó
+			// durante los 200ms de delay y dejó el semáforo en verde de forma errónea.
+			xSemaphoreTake(sem_button, 0);
+		}
+	}
+}
+void vProcessTask(void * pvParameters){
+	TickType_t speed = INITIAL_SPEED;
+	Mode_t mode = INITIAL_MODE;
+	Led_pattern_t pattern;
+
+	QueueSetMemberHandle_t xActivatedMember;
+	while(1){
+		xActivatedMember = xQueueSelectFromSet(xqueueSet, portMAX_DELAY);
+
+		if(xActivatedMember == queue_speed){
+
+			xQueueReceive(queue_speed, &speed, 0);
+			pattern.delay = speed;
+			pattern.mode_L_or_R = mode;
+
+		}else if(xActivatedMember == queue_mode){
+
+			xQueueReceive(queue_mode, &mode, 0);
+			pattern.delay = speed;
+			pattern.mode_L_or_R = mode;
+		}
+		xQueueSend(queue_leds, &pattern, 0);
+	}
+}
+void vPattern_Leds(void * pvParameters){
+	Led_pattern_t led_Pattern;
+	Led_pattern_t aux;
+	led_Pattern.delay = INITIAL_SPEED;
+	led_Pattern.mode_L_or_R = INITIAL_MODE;
+	int8_t led_pos = 0;
+	TickType_t xLastWakeTime = xTaskGetTickCount();
+	while(1){
+		while(xQueueReceive(queue_leds, &aux, 0) == pdPASS){
+			led_Pattern.delay = aux.delay;
+			led_Pattern.mode_L_or_R = aux.mode_L_or_R;
+		}
+
+		// Lógica de desplazamiento
+		if(led_Pattern.mode_L_or_R == 'D') {
+			led_pos++;
+			if(led_pos > 3) led_pos = 0;
+		} else {
+			led_pos--;
+			if(led_pos < 0) led_pos = 3;
+		}
+
+		// Apagar todos los LEDs
+		for (int var = 0; var < 4; ++var) {
+			HAL_GPIO_WritePin(leds_param[var].GPIO_puerto, leds_param[var].GPIO_pin, GPIO_PIN_RESET);
+		}
+
+		// Encender el correspondiente
+		if(led_pos == 0) HAL_GPIO_WritePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 1) HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 2) HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 3) HAL_GPIO_WritePin(leds_param[3].GPIO_puerto, leds_param[3].GPIO_pin, GPIO_PIN_SET);
+
+		vTaskDelayUntil(&xLastWakeTime ,led_Pattern.delay);
+	}
+}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if(GPIO_Pin == GPIO_PIN_0){
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+		xSemaphoreGiveFromISR(sem_button, &xHigherPriorityTaskWoken);
+
+		/* 5. Si xHigherPriorityTaskWoken se puso en pdTRUE, forzamos un cambio de contexto
+		* para que al salir de la interrupción entremos directo a la tarea del botón. */
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
+
+}
+```

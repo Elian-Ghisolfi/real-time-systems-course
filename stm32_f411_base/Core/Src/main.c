@@ -75,14 +75,11 @@ Mode_t mode_define;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-
-void vProducer_Speed_Task(void * pvParameters);
-void vProducer_Mode_Task(void * pvParameters);
-void vProcessTask(void * pvParameters);
-void vPattern_Leds(void * pvParameters);
-
 /* USER CODE BEGIN PFP */
-
+void vProducer_Mode_Task(void *pvParameters);
+void vProducer_Speed_Task(void *pvParameters);
+void vProcessTask(void *pvParameters);
+void vPattern_Leds(void *pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -144,8 +141,7 @@ int main(void)
   /* USER CODE END 2 */
 
   /* Init scheduler */
-
-
+  /* Start scheduler */
   /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
@@ -212,7 +208,6 @@ void vProducer_Speed_Task(void * pvParameters){
 		vTaskDelay(pdMS_TO_TICKS(3000));
 	}
 }
-
 void vProducer_Mode_Task(void * pvParameters){
 	Mode_t pMode = INITIAL_MODE;
 
@@ -234,7 +229,6 @@ void vProducer_Mode_Task(void * pvParameters){
 		}
 	}
 }
-
 void vProcessTask(void * pvParameters){
 	TickType_t speed = INITIAL_SPEED;
 	Mode_t mode = INITIAL_MODE;
@@ -250,18 +244,16 @@ void vProcessTask(void * pvParameters){
 			xQueueReceive(queue_speed, &speed, 0);
 			pattern.delay = speed;
 			pattern.mode_L_or_R = mode;
-			xQueueSend(queue_leds, &pattern, 0);
 
 		}else if(xActivatedMember == queue_mode){
 
 			xQueueReceive(queue_mode, &mode, 0);
 			pattern.delay = speed;
 			pattern.mode_L_or_R = mode;
-			xQueueSend(queue_leds, &pattern, 0);
 		}
+		xQueueSend(queue_leds, &pattern, 0);
 	}
 }
-
 void vPattern_Leds(void * pvParameters){
 	Led_pattern_t led_Pattern;
 	Led_pattern_t aux;
@@ -300,8 +292,6 @@ void vPattern_Leds(void * pvParameters){
 		vTaskDelayUntil(&xLastWakeTime ,led_Pattern.delay);
 	}
 }
-
-
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 	if(GPIO_Pin == GPIO_PIN_0){
