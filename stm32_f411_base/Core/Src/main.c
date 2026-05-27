@@ -27,6 +27,7 @@
 #include "semphr.h"
 #include "queue.h"
 #include <stdlib.h> // Para la función rand()
+#include "timers.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,10 +37,6 @@ typedef struct {
 	uint16_t GPIO_pin;
 	uint32_t delay;
 }Led_Param_t;
-
-typedef struct{
-	uint16_t led_count;
-}Led_counter_t;
 
 /* USER CODE END PTD */
 
@@ -56,30 +53,27 @@ typedef struct{
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 5000},	{GPIOD, GPIO_PIN_13, 5000},
-							{GPIOD, GPIO_PIN_14, 5000}, {GPIOD, GPIO_PIN_15, 5000}};
-
-QueueSetHandle_t xQueueSet;
-QueueHandle_t xQueueLed1;
-QueueHandle_t xQueueLed2;
-
-QueueHandle_t xGlobalQueue;
+Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 100},	{GPIOD, GPIO_PIN_13, 100},
+							{GPIOD, GPIO_PIN_14, 100}, {GPIOD, GPIO_PIN_15, 100}};
 
 SemaphoreHandle_t xSemButton = NULL;
 
-SemaphoreHandle_t xSemControl1 = NULL;
-SemaphoreHandle_t xSemControl2 = NULL;
+TimerHandle_t xWatchDogTimer;
+TimerHandle_t xTimerOutTimer;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void vProducerCountTask(void *pvParameters);
-void vProcessLed1Task(void *pvParameters);
-void vProcessLed2Task(void *pvParameters);
-void vTrashCountTask(void *pvParameters);
 
-void vPattern_Leds(void *pvParameters);
+void prvWatchDogTimerCallback(TimerHandle_t xTimer);
+void prvTimeOutTimer(TimerHandle_t xTimer);
+
+void vBlinkyLed1(void *pvParameters);
+void vWatchDogLed2(void *pvParameters);
+void vTimeOutLed3(void *pvParameters);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -119,25 +113,23 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   xSemButton = xSemaphoreCreateBinary();
-  xSemControl1 = xSemaphoreCreateBinary();
-  xSemControl2 = xSemaphoreCreateBinary();
 
-  xQueueLed1 = xQueueCreate(5, ITEM_SIZE_GLOBAL_QUEUE);
-  xQueueLed2 = xQueueCreate(5, ITEM_SIZE_GLOBAL_QUEUE);
-  xGlobalQueue = xQueueCreate(1, ITEM_SIZE_GLOBAL_QUEUE);
+  xWatchDogTimer = xTimerCreate(
+		  "Whatch Dog",
+		  pdMS_TO_TICKS(5000),
+		  pdFALSE,
+		  (void *)0,
+		  prvWatchDogTimerCallback);
 
-  xQueueSet = xQueueCreateSet((UBaseType_t) 10);
-  xQueueAddToSet(xQueueLed1, xQueueSet);
-  xQueueAddToSet(xQueueLed2, xQueueSet);
+  xTimerOutTimer = xTimerCreate(
+		  "Time Out Led3",
+		  pdMS_TO_TICKS(1000),
+		  pdFALSE,
+		  (void *)1,
+		  prvTimeOutTimer);
 
-
-  xTaskCreate(vProducerCountTask, "Producer Count", 100, NULL, 2, NULL);
-
-  xTaskCreate(vProcessLed1Task, "Process Led1", 100, NULL, 1, NULL);
-  xTaskCreate(vProcessLed2Task, "Process Led2", 100, NULL, 1, NULL);
-
-  xTaskCreate(vTrashCountTask, "Task Recolect", 100, NULL, 1, NULL);
-  xTaskCreate(vPattern_Leds, "Leds", 100, NULL, 1, NULL);
+  xTaskCreate(vBlinkyLed1, "Led 1", 100, NULL, 1, NULL);
+  xTaskCreate(vWatchDogLed2, "Led 2", 100, NULL, 1, NULL);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -202,90 +194,39 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-void vProducerCountTask(void * pvParameters){
-	uint16_t aux_count = 0;
+void prvWatchDogTimerCallback(TimerHandle_t xTimer){
 
-	while(1){
+	HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
+	xTimerStart(xTimerOutTimer, 0);
 
-		if(xSemaphoreTake(xSemButton, portMAX_DELAY) == pdPASS){
-			aux_count = aux_count + 1;
-			xQueueOverwrite(xGlobalQueue, &aux_count);
-			// Bloqueamos la tarea 50ms para ignorar ruidos mecánicos.
-			vTaskDelay(pdMS_TO_TICKS(300));
-			// "Limpiamos" el semáforo por si la interrupción se disparó
-			// durante los 200ms de delay y dejó el semáforo en verde de forma errónea.
-			xSemaphoreTake(xSemButton, 0);
-		}
-	}
 }
-void vProcessLed1Task(void *pvParameters){
-	uint16_t count_peek = 0;
-	uint16_t led_pos = 0;
+void prvTimeOutTimer(TimerHandle_t xTimer){
+	HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_RESET);
+}
 
+void vBlinkyLed1(void *pvParameters){
 	while(1){
-		xQueuePeek(xGlobalQueue, &count_peek, portMAX_DELAY);
-		led_pos = count_peek % 2;
-		if(led_pos == 1 ){
-			xQueueSend(xQueueLed1, &led_pos, 0);
-		}
-		xSemaphoreGive(xSemControl1);
-
-		vTaskDelay(pdMS_TO_TICKS(100));
+		HAL_GPIO_TogglePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin);
+		vTaskDelay(pdMS_TO_TICKS(leds_param[0].delay));
 	}
 }
 
-void vProcessLed2Task(void *pvParameters){
-	uint16_t count_peek = 0;
-	uint16_t led_pos = 0;
+void vWatchDogLed2(void *pvParameters){
+	HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_RESET);
 
 	while(1){
-		xQueuePeek(xGlobalQueue, &count_peek, portMAX_DELAY);
-		led_pos = count_peek % 2;
-		if(led_pos == 0 ){
-			xQueueSend(xQueueLed2, &led_pos, 0);
-		}
-		xSemaphoreGive(xSemControl2);
+		xSemaphoreTake(xSemButton, portMAX_DELAY);
+		HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_SET);
 
-		vTaskDelay(pdMS_TO_TICKS(100));
-	}
-}
-void vTrashCountTask(void *pvParameters){
-	uint16_t aux_trash_count;
-
-	while(1){
-		xSemaphoreTake(xSemControl1, portMAX_DELAY);
-		xSemaphoreTake(xSemControl2, portMAX_DELAY);
-
-		xQueueReceive(xGlobalQueue, &aux_trash_count, 0);
+		xTimerReset(xWatchDogTimer, 0);
+		//xTimerStart(xWatchDogTimer, 0);
 	}
 }
 
-void vPattern_Leds(void * pvParameters){
-	int8_t led_pos = 3;
-	TickType_t xLastWakeTime = xTaskGetTickCount();
-	QueueSetMemberHandle_t xActivatedMember;
+void vTimeOutLed3(void *pvParameters);
 
-	while(1){
 
-		xActivatedMember = xQueueSelectFromSet(xQueueSet, portMAX_DELAY);
-		if(xActivatedMember == xQueueLed1){
-			xQueueReceive(xQueueLed1, &led_pos, 0);
-		}else if(xActivatedMember == xQueueLed2){
-			xQueueReceive(xQueueLed2, &led_pos, 0);
-		}
-
-		// Apagar todos los LEDs
-		for (int var = 0; var < 4; ++var) {
-			HAL_GPIO_WritePin(leds_param[var].GPIO_puerto, leds_param[var].GPIO_pin, GPIO_PIN_RESET);
-		}
-
-		// Encender el correspondiente
-		if(led_pos == 0) HAL_GPIO_WritePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin, GPIO_PIN_SET);
-		if(led_pos == 1) HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
-
-		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
-	}
-}
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 	if(GPIO_Pin == GPIO_PIN_0){
