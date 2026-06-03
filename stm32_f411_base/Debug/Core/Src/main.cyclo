@@ -2,8 +2,8 @@
 ../Core/Src/main.c:158:6:SystemClock_Config	3
 ../Core/Src/main.c:197:6:prvWatchDogTimerCallback	1
 ../Core/Src/main.c:204:6:prvTimeOutTimer	1
-../Core/Src/main.c:208:6:vBlinkyLed1	1
-../Core/Src/main.c:215:6:vWatchDogLed2	1
-../Core/Src/main.c:230:6:HAL_GPIO_EXTI_Callback	3
-../Core/Src/main.c:253:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:271:6:Error_Handler	1
+../Core/Src/main.c:207:6:vBlinkyLed1	1
+../Core/Src/main.c:213:6:vWatchDogLed2	1
+../Core/Src/main.c:223:6:HAL_GPIO_EXTI_Callback	3
+../Core/Src/main.c:246:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:264:6:Error_Handler	1

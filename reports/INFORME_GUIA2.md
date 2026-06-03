@@ -353,3 +353,57 @@ void vPattern_Leds(void * pvParameters){
 	}
 }
 ```
+
+
+## Desafío 5
+**preguntas:** ¿Qué sucede con el LED2 si el usuario presiona el botón repetidamente cada 2
+segundos? ¿LED1 se vio afectado por la lógica de LED2? ¿La función de callback puede
+utilizar vTaskDelay()? ¿Por qué?
+
+### Análisis 
+
+En este desafío implementamos los `Software Timers` mas precisamente un mecanismos de *Watchdog* de software para desactivar procesos
+tras inactividad.
+
+```c
+  xWatchDogTimer = xTimerCreate(
+		  "Whatch Dog",
+		  pdMS_TO_TICKS(5000),
+		  pdFALSE,
+		  (void *)0,
+		  prvWatchDogTimerCallback);
+
+  xTimerOutTimer = xTimerCreate(
+		  "Time Out Led3",
+		  pdMS_TO_TICKS(1000),
+		  pdFALSE,
+		  (void *)1,
+		  prvTimeOutTimer);
+
+void prvWatchDogTimerCallback(TimerHandle_t xTimer){
+
+	HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
+	xTimerStart(xTimerOutTimer, 0);
+
+}
+void prvTimeOutTimer(TimerHandle_t xTimer){
+	HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_RESET);
+}
+void vBlinkyLed1(void *pvParameters){
+	while(1){
+		HAL_GPIO_TogglePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin);
+		vTaskDelay(pdMS_TO_TICKS(leds_param[0].delay));
+	}
+}
+void vWatchDogLed2(void *pvParameters){
+	HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_RESET);
+
+	while(1){
+		xSemaphoreTake(xSemButton, portMAX_DELAY);
+		HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_SET);
+
+		xTimerReset(xWatchDogTimer, 0);
+	}
+}
+```

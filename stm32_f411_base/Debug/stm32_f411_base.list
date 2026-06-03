@@ -1115,7 +1115,6 @@ void prvTimeOutTimer(TimerHandle_t xTimer){
  80009b8:	20000000 	.word	0x20000000
 
 080009bc <vBlinkyLed1>:
-
 void vBlinkyLed1(void *pvParameters){
  80009bc:	b580      	push	{r7, lr}
  80009be:	b082      	sub	sp, #8
@@ -1150,7 +1149,6 @@ void vBlinkyLed1(void *pvParameters){
 080009fc <vWatchDogLed2>:
 	}
 }
-
 void vWatchDogLed2(void *pvParameters){
  80009fc:	b590      	push	{r4, r7, lr}
  80009fe:	b085      	sub	sp, #20
@@ -1201,11 +1199,8 @@ void vWatchDogLed2(void *pvParameters){
  8000a58:	200000b0 	.word	0x200000b0
 
 08000a5c <HAL_GPIO_EXTI_Callback>:
+	}
 }
-
-void vTimeOutLed3(void *pvParameters);
-
-
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
  8000a5c:	b580      	push	{r7, lr}
  8000a5e:	b084      	sub	sp, #16

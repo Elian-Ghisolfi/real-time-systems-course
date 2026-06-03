@@ -204,14 +204,12 @@ void prvWatchDogTimerCallback(TimerHandle_t xTimer){
 void prvTimeOutTimer(TimerHandle_t xTimer){
 	HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_RESET);
 }
-
 void vBlinkyLed1(void *pvParameters){
 	while(1){
 		HAL_GPIO_TogglePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin);
 		vTaskDelay(pdMS_TO_TICKS(leds_param[0].delay));
 	}
 }
-
 void vWatchDogLed2(void *pvParameters){
 	HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_RESET);
 
@@ -220,13 +218,8 @@ void vWatchDogLed2(void *pvParameters){
 		HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_SET);
 
 		xTimerReset(xWatchDogTimer, 0);
-		//xTimerStart(xWatchDogTimer, 0);
 	}
 }
-
-void vTimeOutLed3(void *pvParameters);
-
-
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 	if(GPIO_Pin == GPIO_PIN_0){
