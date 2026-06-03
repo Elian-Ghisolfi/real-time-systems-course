@@ -407,3 +407,47 @@ void vWatchDogLed2(void *pvParameters){
 	}
 }
 ```
+
+
+## Desafío 6
+**preguntas:** Comparar el consumo de Stack de este diseño frente a una tarea que haga lo
+mismo con un bucle y vTaskDelay(). ¿Dónde reside la lógica de conmutación del LED en
+este desafío?
+
+### Análisis 
+
+En este desafío vamos a utilizar un `Software Timer` para crear un mecanismo periódico que realiza un rutina de *Blinky Led*, que cambia dicho periodo por una interrupción de pulsador. 
+
+```c
+  xMetronomoTimer = xTimerCreate(
+		  "Metronomo",
+		  pdMS_TO_TICKS(1000),
+		  pdTRUE,
+		  (void *)0,
+		  prvMetronomoCallback);
+
+void prvMetronomoCallback(TimerHandle_t xTimer){
+	HAL_GPIO_TogglePin(leds_param[3].GPIO_puerto, leds_param[3].GPIO_pin);
+
+}
+void vChangePeriodTask(void *pvParameters){
+	TickType_t new_period;
+	new_period = xTimerGetPeriod(xMetronomoTimer);
+
+	while(1){
+		xSemaphoreTake(xSemButton, portMAX_DELAY);
+		new_period = xTimerGetPeriod(xMetronomoTimer);
+		if (new_period > pdMS_TO_TICKS(125)){
+			new_period = new_period / 2;
+			xTimerChangePeriod(xMetronomoTimer, new_period, portMAX_DELAY);
+		}else{
+			new_period = pdMS_TO_TICKS(1000);
+			xTimerChangePeriod(xMetronomoTimer, new_period, portMAX_DELAY);
+		}
+
+		// anti-bouncing
+		vTaskDelay(pdMS_TO_TICKS(100));
+		xSemaphoreTake(xSemButton, 0);
+	}
+}
+```

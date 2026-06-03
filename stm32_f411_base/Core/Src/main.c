@@ -47,7 +47,7 @@ typedef struct {
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define ITEM_SIZE_GLOBAL_QUEUE sizeof( Led_counter_t )
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -58,21 +58,15 @@ Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 100},	{GPIOD, GPIO_PIN_13, 100
 
 SemaphoreHandle_t xSemButton = NULL;
 
-TimerHandle_t xWatchDogTimer;
-TimerHandle_t xTimerOutTimer;
-
+TimerHandle_t xMetronomoTimer;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-void prvWatchDogTimerCallback(TimerHandle_t xTimer);
-void prvTimeOutTimer(TimerHandle_t xTimer);
-
-void vBlinkyLed1(void *pvParameters);
-void vWatchDogLed2(void *pvParameters);
-void vTimeOutLed3(void *pvParameters);
+void prvMetronomoCallback(TimerHandle_t xTimer);
+void vChangePeriodTask (void *pvParameters);
 
 /* USER CODE END PFP */
 
@@ -114,22 +108,16 @@ int main(void)
 
   xSemButton = xSemaphoreCreateBinary();
 
-  xWatchDogTimer = xTimerCreate(
-		  "Whatch Dog",
-		  pdMS_TO_TICKS(5000),
-		  pdFALSE,
-		  (void *)0,
-		  prvWatchDogTimerCallback);
-
-  xTimerOutTimer = xTimerCreate(
-		  "Time Out Led3",
+  xMetronomoTimer = xTimerCreate(
+		  "Metronomo",
 		  pdMS_TO_TICKS(1000),
-		  pdFALSE,
-		  (void *)1,
-		  prvTimeOutTimer);
+		  pdTRUE,
+		  (void *)0,
+		  prvMetronomoCallback);
 
-  xTaskCreate(vBlinkyLed1, "Led 1", 100, NULL, 1, NULL);
-  xTaskCreate(vWatchDogLed2, "Led 2", 100, NULL, 1, NULL);
+  xTaskCreate(vChangePeriodTask, "Led 4", 100, NULL, 1, NULL);
+
+  xTimerStart(xMetronomoTimer, 0);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -194,30 +182,28 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-void prvWatchDogTimerCallback(TimerHandle_t xTimer){
-
-	HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
-	xTimerStart(xTimerOutTimer, 0);
+void prvMetronomoCallback(TimerHandle_t xTimer){
+	HAL_GPIO_TogglePin(leds_param[3].GPIO_puerto, leds_param[3].GPIO_pin);
 
 }
-void prvTimeOutTimer(TimerHandle_t xTimer){
-	HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_RESET);
-}
-void vBlinkyLed1(void *pvParameters){
-	while(1){
-		HAL_GPIO_TogglePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin);
-		vTaskDelay(pdMS_TO_TICKS(leds_param[0].delay));
-	}
-}
-void vWatchDogLed2(void *pvParameters){
-	HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_RESET);
+void vChangePeriodTask(void *pvParameters){
+	TickType_t new_period;
+	new_period = xTimerGetPeriod(xMetronomoTimer);
 
 	while(1){
 		xSemaphoreTake(xSemButton, portMAX_DELAY);
-		HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_SET);
+		new_period = xTimerGetPeriod(xMetronomoTimer);
+		if (new_period > pdMS_TO_TICKS(125)){
+			new_period = new_period / 2;
+			xTimerChangePeriod(xMetronomoTimer, new_period, portMAX_DELAY);
+		}else{
+			new_period = pdMS_TO_TICKS(1000);
+			xTimerChangePeriod(xMetronomoTimer, new_period, portMAX_DELAY);
+		}
 
-		xTimerReset(xWatchDogTimer, 0);
+		// anti-bouncing
+		vTaskDelay(pdMS_TO_TICKS(100));
+		xSemaphoreTake(xSemButton, 0);
 	}
 }
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
