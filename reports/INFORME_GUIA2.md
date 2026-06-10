@@ -451,3 +451,72 @@ void vChangePeriodTask(void *pvParameters){
 	}
 }
 ```
+
+## Desafío 7
+**preguntas:** Cómo se comunican los timers entre sí o con el resto del sistema? ¿Es seguro
+modificar el periodo o detener un timer desde el callback de otro timer?
+
+### Análisis 
+
+![Diagrama de Flujo Desafío 7](../images/DF_Guia2_Def7.jpg "Diagrama de Flujo Desafío 7")
+
+```c
+void prvAutoReloadAlarmCallback(TimerHandle_t xTimer){
+	HAL_GPIO_TogglePin(leds_param[LED_PRE_ARMADO].GPIO_puerto, leds_param[LED_PRE_ARMADO].GPIO_pin);
+}
+void prvOneShotAlarmCallback(TimerHandle_t xTimer){
+	xTimerStop(xAutoReloadAlarmTimer, 0);
+	xTaskNotify(xArmingTaskHandle, ONESHOT_TIMER_SIGNAL, eSetBits);
+
+}
+void vArmingAlarmTask(void *pvParameters){
+    AlarmState_t currentState = STATE_INACTIVE;
+    uint32_t signal;
+    while(1){
+        xTaskNotifyWait(0, ULONG_MAX, &signal, portMAX_DELAY);
+        // Evaluamos QUÉ HACER dependiendo del ESTADO ACTUAL
+        switch (currentState) {
+            case STATE_INACTIVE:
+            case STATE_ARMED:
+            	if(signal == BUTTON_SIGNAL){
+					xTimerStart(xOneShotAlarmTimer, 0);
+					xTimerStart(xAutoReloadAlarmTimer, 0);
+
+					HAL_GPIO_WritePin(leds_param[LED_SISTEMA_ARMADO].GPIO_puerto,
+									  leds_param[LED_SISTEMA_ARMADO].GPIO_pin, GPIO_PIN_RESET);
+
+					currentState = STATE_ARMING;
+            	}
+                break;
+            case STATE_ARMING:
+            	// Cubrimos en la tarea los eventos posibles de BOTON o de ONE SHOT TIMER
+            	if(signal == BUTTON_SIGNAL){
+					xTimerStop(xAutoReloadAlarmTimer, 0);
+					xTimerStop(xOneShotAlarmTimer, 0);
+
+					HAL_GPIO_WritePin(leds_param[LED_PRE_ARMADO].GPIO_puerto,
+									  leds_param[LED_PRE_ARMADO].GPIO_pin, GPIO_PIN_RESET);
+
+					currentState = STATE_INACTIVE;
+            	} else if(signal == ONESHOT_TIMER_SIGNAL){
+
+					xTimerStop(xAutoReloadAlarmTimer, 0);
+					HAL_GPIO_WritePin(leds_param[LED_SISTEMA_ARMADO].GPIO_puerto,
+									  leds_param[LED_SISTEMA_ARMADO].GPIO_pin, GPIO_PIN_SET);
+
+					HAL_GPIO_WritePin(leds_param[LED_PRE_ARMADO].GPIO_puerto,
+									  leds_param[LED_PRE_ARMADO].GPIO_pin, GPIO_PIN_RESET);
+					currentState = STATE_ARMED;
+            	}
+                break;
+        }
+    }
+}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if(GPIO_Pin == GPIO_PIN_0){
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		xTaskNotifyFromISR(xArmingTaskHandle, BUTTON_SIGNAL, eSetBits, &xHigherPriorityTaskWoken);
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
+}
+```
