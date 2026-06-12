@@ -24,32 +24,65 @@
 /* USER CODE BEGIN Includes */
 #include "FreeRTOS.h"
 #include "task.h"
+#include "semphr.h"
+#include "queue.h"
+#include <stdlib.h> // Para la función rand()
+#include "timers.h"
+#include <limits.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef struct {
+	GPIO_TypeDef* GPIO_puerto;
+	uint16_t GPIO_pin;
+	uint32_t delay;
+}Led_Param_t;
 
+typedef enum {
+    STATE_INACTIVE,
+    STATE_ARMING,
+    STATE_ARMED
+} AlarmState_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+#define LED_PRE_ARMADO     0
+#define LED_SISTEMA_ARMADO 1
+
+#define BUTTON_SIGNAL           (1 << 0)
+#define ONESHOT_TIMER_SIGNAL    (1 << 1)
 
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 100},	{GPIOD, GPIO_PIN_13, 100},
+							{GPIOD, GPIO_PIN_14, 100}, {GPIOD, GPIO_PIN_15, 100}};
+
+//SemaphoreHandle_t xSemButton = NULL;
+
+TimerHandle_t xAutoReloadAlarmTimer;
+TimerHandle_t xOneShotAlarmTimer;
+
+TaskHandle_t xArmingTaskHandle;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+
+void prvAutoReloadAlarmCallback(TimerHandle_t xTimer);
+void prvOneShotAlarmCallback(TimerHandle_t xTimer);
+
+void vArmingAlarmTask(void *pvParameters);
 
 /* USER CODE END PFP */
 
@@ -89,7 +122,21 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
+  xAutoReloadAlarmTimer = xTimerCreate(
+		  "Armado Alarma",
+		  pdMS_TO_TICKS(100),
+		  pdTRUE,
+		  (void *)0,
+		  prvAutoReloadAlarmCallback);
 
+  xOneShotAlarmTimer = xTimerCreate(
+		  "Armado Alarma",
+		  pdMS_TO_TICKS(10000),
+		  pdFALSE,
+		  (void *)0,
+		  prvOneShotAlarmCallback);
+
+  xTaskCreate(vArmingAlarmTask, "Gestion alarma", 100, NULL, 1, &xArmingTaskHandle);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -97,8 +144,7 @@ int main(void)
   /* USER CODE END 2 */
 
   /* Init scheduler */
-
-
+  /* Start scheduler */
   /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
@@ -155,6 +201,78 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
+void prvAutoReloadAlarmCallback(TimerHandle_t xTimer){
+	HAL_GPIO_TogglePin(leds_param[LED_PRE_ARMADO].GPIO_puerto, leds_param[LED_PRE_ARMADO].GPIO_pin);
+}
+
+void prvOneShotAlarmCallback(TimerHandle_t xTimer){
+	xTimerStop(xAutoReloadAlarmTimer, 0);
+	xTaskNotify(xArmingTaskHandle, ONESHOT_TIMER_SIGNAL, eSetBits);
+
+}
+
+void vArmingAlarmTask(void *pvParameters){
+    AlarmState_t currentState = STATE_INACTIVE;
+    uint32_t signal;
+
+    while(1){
+        xTaskNotifyWait(0, ULONG_MAX, &signal, portMAX_DELAY);
+
+        // Evaluamos QUÉ HACER dependiendo del ESTADO ACTUAL
+        switch (currentState) {
+
+            case STATE_INACTIVE:
+            case STATE_ARMED:
+            	if(signal == BUTTON_SIGNAL){
+					xTimerStart(xOneShotAlarmTimer, 0);
+					xTimerStart(xAutoReloadAlarmTimer, 0);
+
+					HAL_GPIO_WritePin(leds_param[LED_SISTEMA_ARMADO].GPIO_puerto,
+									  leds_param[LED_SISTEMA_ARMADO].GPIO_pin, GPIO_PIN_RESET);
+
+					currentState = STATE_ARMING;
+            	}
+                break;
+
+            case STATE_ARMING:
+            	// Cubrimos en la tarea los eventos posibles de BOTON o de ONE SHOT TIMER
+            	if(signal == BUTTON_SIGNAL){
+					xTimerStop(xAutoReloadAlarmTimer, 0);
+					xTimerStop(xOneShotAlarmTimer, 0);
+
+					HAL_GPIO_WritePin(leds_param[LED_PRE_ARMADO].GPIO_puerto,
+									  leds_param[LED_PRE_ARMADO].GPIO_pin, GPIO_PIN_RESET);
+
+					currentState = STATE_INACTIVE;
+            	} else if(signal == ONESHOT_TIMER_SIGNAL){
+
+					xTimerStop(xAutoReloadAlarmTimer, 0);
+					HAL_GPIO_WritePin(leds_param[LED_SISTEMA_ARMADO].GPIO_puerto,
+									  leds_param[LED_SISTEMA_ARMADO].GPIO_pin, GPIO_PIN_SET);
+
+					HAL_GPIO_WritePin(leds_param[LED_PRE_ARMADO].GPIO_puerto,
+									  leds_param[LED_PRE_ARMADO].GPIO_pin, GPIO_PIN_RESET);
+					currentState = STATE_ARMED;
+            	}
+                break;
+        }
+    }
+}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+
+	if(GPIO_Pin == GPIO_PIN_0){
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+		xTaskNotifyFromISR(xArmingTaskHandle, BUTTON_SIGNAL, eSetBits, &xHigherPriorityTaskWoken);
+
+		//xSemaphoreGiveFromISR(xSemButton, &xHigherPriorityTaskWoken);
+
+		/* 5. Si xHigherPriorityTaskWoken se puso en pdTRUE, forzamos un cambio de contexto
+		* para que al salir de la interrupción entremos directo a la tarea del botón. */
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
+
+}
 /* USER CODE END 4 */
 
 /**
