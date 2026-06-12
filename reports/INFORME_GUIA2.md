@@ -3,8 +3,6 @@ practical exercises and projects of the real-time systems course
 
 Estoy organizando mi repositorio de github de estos trabajos voy a tener una carpeta con reportes de cada guía de trabajo, la idea es tener un readme.md que me introduzca el repositorio guiando a cada reporte por cada guía de trabajo que son las siguientes:
 
-Guia 1
-
 ## Desafío 1
 
 **Preguntas**: Transferir datos entre tareas de forma segura. ¿Qué sucede si la tarea consumidora es más lenta que la productora? ¿Cómo
@@ -259,6 +257,16 @@ void vPattern_Leds(void * pvParameters){
 	}
 }
 ```
+1. Ventaja del Queue Set frente al "Polling"
+**Polling**: Desperdicia ciclos de reloj manteniendo la CPU preguntando continuamente si hay datos por mas que usemos vTaskDelay(), lo que roba tiempo de procesamiento a tareas de menor prioridad (CPU Starvation).
+**Queue Set**: Permite que la tarea pase al estado Blocked mientras espera. Cuando llega un dato, el RTOS la despierta instantáneamente, logrando una respuesta inmediata sin desperdiciar energía.
+
+
+2. Influencia del tamaño de las colas en el Set
+Lo mas importante es que el tamaño del *Queue Set* debe ser exactamente la suma de las capacidades máximas de las colas que contiene (Ej: Cola A(4) + Cola B(4) = Set(8)).
+El Comportamiento: El *Queue Set* guarda notificaciones (punteros a los Handle de las Queue). Si su tamaño fuera menor a esta suma y ocurre una ráfaga donde todas las colas se llenan simultáneamente, el Set se desbordaría internamente, provocando que el RTOS pierda datos y el sistema sufra un error fatal (cuelgue / configASSERT).
+
+
 ## Desafío 4
 
 **Preguntas**: ¿Qué sucede si una tarea usa xQueueReceive() en lugar de xQueuePeek()?
@@ -268,7 +276,7 @@ eliminado de la cola?
 ### Análisis: 
 
 En este desafío vamos ver como podemos generar un flujo de datos donde múltiples tareas accedan a la misma información sin "consumirla" de
-la cola, permitiendo un procesamiento paralelo de un mismo evento. Simulando un `Mail Box`
+la cola, permitiendo un procesamiento paralelo de un mismo evento. Simulando un `Mail Box`.
 
 ![Diagrama de Flujo Desafío 4](../images/DF_Guia2_Def4.jpg "Diagrama de Flujo Desafío 4")
 
@@ -353,6 +361,12 @@ void vPattern_Leds(void * pvParameters){
 	}
 }
 ```
+1. ¿Qué sucede si una tarea usa xQueueReceive() en lugar de xQueuePeek()?
+En nuestra implementación tenemos bien definida las tareas como Productora, Procesadores y de Recolección, en estos sistema estilo `Mail Box` lo importante es que las tareas solo tengan acceso a la información sin consumirla ya que podrían crear una desincronización o un mal funcionamiento ya que dejarían a otra tarea Procesadora sin poder acceder a dicha información.
+
+2. ¿Cómo se aseguran de que ambas tareas leyeron el mismo dato antes de que este sea eliminado de la cola?
+Para poder arbitrar el uso de la información nos aseguramos de dos maneras: Primero utilizando un servicio de Queues como `xQueuePeek()` que copia el contenido y no lo borra para que pueda ser tomado por cualquier otra tarea que tenga acceso a la Queue. Y segundo habilitando un conjuntos de semáforos para que una tarea auxiliar de Recolección se encarga de eliminar el dato viejo que ya fue tomado por todos los Procesadores. 
+
 
 
 ## Desafío 5
@@ -363,7 +377,7 @@ utilizar vTaskDelay()? ¿Por qué?
 ### Análisis 
 
 En este desafío implementamos los `Software Timers` mas precisamente un mecanismos de *Watchdog* de software para desactivar procesos
-tras inactividad.
+tras inactividad. Luego explicamos el funcionamiento y la robustez de usar Software Timers 
 
 ```c
   xWatchDogTimer = xTimerCreate(
@@ -407,6 +421,15 @@ void vWatchDogLed2(void *pvParameters){
 	}
 }
 ```
+1. 
+¿Qué sucede con el LED2 si el usuario presiona el botón repetidamente cada 2 segundos?
+El temporizador nunca llegará a expirar. Cada vez que se presiona el botón a los 2 segundos, `xTimerReset` resetea el vencimiento otros 5 segundos. Por lo tanto, el LED2 permanecerá encendido indefinidamente (o hasta que el usuario deje de presionar el botón por más de 5 segundos seguidos).
+
+2. ¿LED1 se vio afectado por la lógica de LED2?
+**NO** ya que la tarea vBlinkyLed1 corre en su propio contexto de ejecución, totalmente independiente. Mientras la tarea del LED2 se bloquea esperando un semáforo, el *Scheduler* le entrega la CPU a la tarea del LED1 para que siga parpadeando.
+
+3. ¿La función de callback puede utilizar vTaskDelay()? ¿Por qué?
+Definitivamente **NO** por que como vimos en la clase teórica, las funciones callback de los Timers no son tareas independientes, se ejecutan dentro de una única tarea del sistema llamada `Daemon Task`.Si ponemos un `vTaskDelay()` dentro de un callback, bloqueamos a la Demon Task y producirá que los otros timers del sistema funcionen mal o pierdan su determinismo.
 
 
 ## Desafío 6
@@ -416,7 +439,7 @@ este desafío?
 
 ### Análisis 
 
-En este desafío vamos a utilizar un `Software Timer` para crear un mecanismo periódico que realiza un rutina de *Blinky Led*, que cambia dicho periodo por una interrupción de pulsador. 
+En este desafío vamos a utilizar un `Software Timer` para crear un mecanismo periódico que realiza un rutina de *Blinky Led*, que cambia dicho periodo por una interrupción de pulsador. Luego vamos a comparar con el uso de tareas auxiliares en vez de Software Timers.
 
 ```c
   xMetronomoTimer = xTimerCreate(
@@ -451,6 +474,11 @@ void vChangePeriodTask(void *pvParameters){
 	}
 }
 ```
+
+Usando una Tarea con `vTaskDelay()` como por ej. vTareaBlinky con un bucle infinito y el delay para conmutar el LED, FreeRTOS habría tenido que asignar Un TCB (BLoque de control) y el stack propio de la tarea que significa un gran gasto para eventos periódicos o de one shot.
+Mientras que si utilizamos un `Software Timer` no estamos gastando en TCB o Stack, porque los Timers de FreeRTOS no tienen su propio Stack todos los Timers del sistema comparten el mismo Stack de la `Demon Task` encargada de gestionarlos. 
+Por otro lado la lógica de conmutación esta implementada en la callback del Software Timer `prvMetronomoCallback()` pero reside y se ejecuta en el contexto de la Tarea Demonio de FreeRTOS (RTOS Daemon Task o Timer Service Task).
+
 
 ## Desafío 7
 **preguntas:** Cómo se comunican los timers entre sí o con el resto del sistema? ¿Es seguro
@@ -489,7 +517,7 @@ void vArmingAlarmTask(void *pvParameters){
             	}
                 break;
             case STATE_ARMING:
-            	// Cubrimos en la tarea los eventos posibles de BOTON o de ONE SHOT TIMER
+            	// Cubrimos en la tarea los eventos posibles de BOTÓN o de ONE SHOT TIMER
             	if(signal == BUTTON_SIGNAL){
 					xTimerStop(xAutoReloadAlarmTimer, 0);
 					xTimerStop(xOneShotAlarmTimer, 0);
@@ -520,3 +548,14 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	}
 }
 ```
+
+En este desafío implementamos un sistema complejo con varios estados posibles y eventos. A la aplicación la pensé como una maquina de estados que iba cambiando dependiendo el tiempo y el tipo de eventos posibles, para manejar los dos eventos posibles `BUTTON_SIGNAL` y `ONESHOT_TIMER_SIGNAL` utilizamos la variable de *32bits* de una notificación ya que una tarea iba a gestionar el manejo de los estados con respecto a los eventos que sucedan. También traté de manejar buenas practicas de programación usando *macros* y un *enum* para los estados a posibles.
+
+1. 
+Los temporizadores en FreeRTOS se comunican con el sistema de dos maneras:
+A través del Hardware/Variables Compartidas: Modificando pines físicos (como los LEDs) o variables globales/colas/semáforos para avisar a otras tareas que el tiempo expiró.
+A través de la API del RTOS: Un timer puede modificar a otro timer mediante las funciones de la API ( `xTimerStop` , `xTimerReset`).
+
+2. 
+Si es seguro detener o modificar un timer porque todos los callbacks de todos los temporizadores se ejecutan estrictamente de forma secuencial dentro de una única tarea: la RTOS `Daemon Task`. No existe el concepto de concurrencia entre dos callbacks de timer, por lo tanto, nunca habrá condiciones de carrera (Race Conditions) al modificar un timer desde el callback de otro. 
+*Cita textual* funciones como `xTimerStop` no detienen el timer instantáneamente, sino que envían un mensaje a la cola de comandos de la Demon Task (Timer Command Queue), que se procesará de forma ordenada.

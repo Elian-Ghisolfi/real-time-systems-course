@@ -1,5 +1,5 @@
 # real-time-systems-course Guía 1 de Trabajos Prácticos
-practical exercises and projects of the real-time systems course
+practical exercises and projects of the real-time systems course GUÍA 1
 
 ## Desafío 1
 
