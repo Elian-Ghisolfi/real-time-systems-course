@@ -54,7 +54,7 @@ typedef enum {
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define MAX_CMD_LEN 64U
+#define MAX_STRING_LEN 64U
 
 /* USER CODE END PM */
 
@@ -65,7 +65,6 @@ Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 100},	{GPIOD, GPIO_PIN_13, 100
 							{GPIOD, GPIO_PIN_14, 100}, {GPIOD, GPIO_PIN_15, 100}};
 
 SemaphoreHandle_t xUSB_Tx_Mutex = NULL;
-SemaphoreHandle_t xButton_Sem= NULL;
 xQueueHandle xUSB_Rx_Queue = NULL;
 
 
@@ -75,8 +74,7 @@ xQueueHandle xUSB_Rx_Queue = NULL;
 void SystemClock_Config(void);
 
 uint8_t usb_transmit_buffer_safe(const char *pcString);
-void vRxTask(void *pvParameters);
-void vTareaBoton(void *pvParameters);
+void vTareaProcesadora(void *pvParameters);
 /* USER CODE BEGIN PFP */
 
 
@@ -119,12 +117,10 @@ int main(void)
   /* USER CODE BEGIN 2 */
   MX_USB_DEVICE_Init();
 
-  xUSB_Rx_Queue = xQueueCreate(MAX_CMD_LEN, sizeof (uint8_t));
+  xUSB_Rx_Queue = xQueueCreate(MAX_STRING_LEN, sizeof (uint8_t));
   xUSB_Tx_Mutex = xSemaphoreCreateMutex();
-  xButton_Sem = xSemaphoreCreateBinary();
 
-  xTaskCreate(vRxTask, "Consumidora", 1024, NULL, 1, NULL);
-  xTaskCreate(vTareaBoton, "Tarea del Boton", 1024, NULL, 1, NULL);
+  xTaskCreate(vTareaProcesadora, "Tarea Procesadora", 1024, NULL, 1, NULL);
   /* Start scheduler */
   vTaskStartScheduler();
 
@@ -201,7 +197,7 @@ uint8_t usb_transmit_buffer_safe(const char *pcString){
 
 	if(xSemaphoreTake(xUSB_Tx_Mutex, portMAX_DELAY) == pdTRUE){
 
-		while(pcString[len] != '\0') len++;
+		while(pcString[len] != '\0') len++; // Standard de C
 		do {
 			status = CDC_Transmit_FS((uint8_t*)pcString, len);
 
@@ -218,52 +214,27 @@ uint8_t usb_transmit_buffer_safe(const char *pcString){
 	return USBD_OK;
 }
 
-void vRxTask(void *pvParameters) {
-    uint8_t receivedChar;
-    while(1) {
-        // Bloqueo absoluto (0% CPU) hasta que CDC_Receive_FS envíe algo
-        if(xQueueReceive(xUSB_Rx_Queue, &receivedChar, portMAX_DELAY) == pdPASS) {
+void vTareaProcesadora(void *pvParameters) {
+    char rxChar;
+    char txBuffer[80]; // Buffer local para armar el mensaje
+    UBaseType_t pendingCount; // Variable para almacenar la cantidad 'N'
 
-            // Lógica con los LEDs (Pin 12 y 13)
-            if(receivedChar == '1') {
-                HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-                usb_transmit_buffer_safe("LED 12 Toggled\r\n");
-            }
-            else if(receivedChar == '2') {
-                HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-                usb_transmit_buffer_safe("LED 13 Toggled\r\n");
-            }
+    while(1) {
+
+        if(xQueueReceive(xUSB_Rx_Queue, &rxChar, portMAX_DELAY) == pdPASS) {
+
+            HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+
+
+            pendingCount = uxQueueMessagesWaiting(xUSB_Rx_Queue);
+
+            snprintf(txBuffer, sizeof(txBuffer), "Recibido:'%c' - Caracteres pendientes:%u \r\n", rxChar, (unsigned int)pendingCount);
+
+            usb_transmit_buffer_safe(txBuffer);
         }
     }
-}
-
-void vTareaBoton(void *pvParameters){
-	const char *pcMSG = "[EVENTO] Pulsador accionado\r\n";
-
-	while(1){
-
-		if(xSemaphoreTake(xButton_Sem, portMAX_DELAY) == pdPASS){
-
-            HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
-			usb_transmit_buffer_safe(pcMSG);
-
-			// Anti Bouncing
-			xSemaphoreTake(xButton_Sem, 0);
-			vTaskDelay(pdMS_TO_TICKS(100));
-		}
-	}
-}
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-
-	if (GPIO_Pin == GPIO_PIN_0){
-		  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-		  xSemaphoreGiveFromISR(xButton_Sem, &xHigherPriorityTaskWoken);
-
-		  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-	}
-
 }
 /* USER CODE END 4 */
 
