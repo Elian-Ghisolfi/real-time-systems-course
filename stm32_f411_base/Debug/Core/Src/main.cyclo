@@ -1,6 +1,8 @@
-../Core/Src/main.c:92:5:main	1
-../Core/Src/main.c:151:6:SystemClock_Config	3
-../Core/Src/main.c:195:9:usb_transmit_buffer_safe	5
-../Core/Src/main.c:218:6:vRxTask	4
-../Core/Src/main.c:247:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:265:6:Error_Handler	1
+../Core/Src/main.c:94:5:main	1
+../Core/Src/main.c:154:6:SystemClock_Config	3
+../Core/Src/main.c:198:9:usb_transmit_buffer_safe	5
+../Core/Src/main.c:221:6:vRxTask	4
+../Core/Src/main.c:240:6:vTareaBoton	2
+../Core/Src/main.c:257:6:HAL_GPIO_EXTI_Callback	3
+../Core/Src/main.c:278:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:296:6:Error_Handler	1

@@ -65,6 +65,7 @@ Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 100},	{GPIOD, GPIO_PIN_13, 100
 							{GPIOD, GPIO_PIN_14, 100}, {GPIOD, GPIO_PIN_15, 100}};
 
 SemaphoreHandle_t xUSB_Tx_Mutex = NULL;
+SemaphoreHandle_t xButton_Sem= NULL;
 xQueueHandle xUSB_Rx_Queue = NULL;
 
 
@@ -75,6 +76,7 @@ void SystemClock_Config(void);
 
 uint8_t usb_transmit_buffer_safe(const char *pcString);
 void vRxTask(void *pvParameters);
+void vTareaBoton(void *pvParameters);
 /* USER CODE BEGIN PFP */
 
 
@@ -119,9 +121,10 @@ int main(void)
 
   xUSB_Rx_Queue = xQueueCreate(MAX_CMD_LEN, sizeof (uint8_t));
   xUSB_Tx_Mutex = xSemaphoreCreateMutex();
+  xButton_Sem = xSemaphoreCreateBinary();
 
   xTaskCreate(vRxTask, "Consumidora", 1024, NULL, 1, NULL);
-
+  xTaskCreate(vTareaBoton, "Tarea del Boton", 1024, NULL, 1, NULL);
   /* Start scheduler */
   vTaskStartScheduler();
 
@@ -234,6 +237,34 @@ void vRxTask(void *pvParameters) {
     }
 }
 
+void vTareaBoton(void *pvParameters){
+	const char *pcMSG = "[EVENTO] Pulsador accionado\r\n";
+
+	while(1){
+
+		if(xSemaphoreTake(xButton_Sem, portMAX_DELAY) == pdPASS){
+
+            HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+			usb_transmit_buffer_safe(pcMSG);
+
+			// Anti Bouncing
+			xSemaphoreTake(xButton_Sem, 0);
+			vTaskDelay(pdMS_TO_TICKS(100));
+		}
+	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+
+	if (GPIO_Pin == GPIO_PIN_0){
+		  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+		  xSemaphoreGiveFromISR(xButton_Sem, &xHigherPriorityTaskWoken);
+
+		  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
+
+}
 /* USER CODE END 4 */
 
 /**
