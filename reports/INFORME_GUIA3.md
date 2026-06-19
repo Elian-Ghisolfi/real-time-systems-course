@@ -165,3 +165,36 @@ void vTareaB(void *pvParameters){
     }
 }
 ```
+
+## Desafío 4
+
+**Funcionamiento**: Reemplazar la sobrecarga de un Semáforo Binario global por una notificación directa a la tarea (Direct to Task Notification), optimizando la memoria y los ciclos de reloj.
+
+### Análisis:
+
+```c
+void vTareaA(void *pvParameters){
+
+    while(1) {
+    	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+    	vTaskDelay(pdMS_TO_TICKS(200));
+
+    }
+}
+
+static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
+{
+  /* USER CODE BEGIN 6 */
+  BaseType_t HigherPriorityTaskWoken = pdFALSE;
+  vTaskNotifyGiveFromISR(xTarea_Terminal_Handle, &HigherPriorityTaskWoken);
+
+
+  USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
+  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+
+  portYIELD_FROM_ISR(HigherPriorityTaskWoken);
+  return (USBD_OK);
+  /* USER CODE END 6 */
+}
+```
