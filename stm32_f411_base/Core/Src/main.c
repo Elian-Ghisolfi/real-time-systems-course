@@ -65,8 +65,7 @@ Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 100},	{GPIOD, GPIO_PIN_13, 100
 							{GPIOD, GPIO_PIN_14, 100}, {GPIOD, GPIO_PIN_15, 100}};
 
 SemaphoreHandle_t xUSB_Tx_Mutex = NULL;
-xQueueHandle xUSB_Rx_Queue = NULL;
-
+TaskHandle_t xTarea_Terminal_Handle;
 
 /* USER CODE END PV */
 
@@ -118,11 +117,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
   MX_USB_DEVICE_Init();
 
-  xUSB_Rx_Queue = xQueueCreate(MAX_STRING_LEN, sizeof (uint8_t));
   xUSB_Tx_Mutex = xSemaphoreCreateMutex();
 
-  xTaskCreate(vTareaA, "Tarea A", 1024, NULL, 1, NULL);
-  xTaskCreate(vTareaB, "Tarea A", 1024, NULL, 1, NULL);
+  xTaskCreate(vTareaA, "Tarea A", 1024, NULL, 1, &xTarea_Terminal_Handle);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -218,34 +215,11 @@ uint8_t usb_transmit_buffer_safe(const char *pcString){
 }
 
 void vTareaA(void *pvParameters){
-	TickType_t PreviousWakeTime;
-	char txBuffer[80]; // Buffer local para armar el mensaje
-    UBaseType_t count = 1U;
 
     while(1) {
-    	PreviousWakeTime = xTaskGetTickCount();
-
-		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA B EJECUTANDOSE VEZ NUMERO %ld ---\r\n", count);
-		count++;
-		usb_transmit_buffer_safe(txBuffer);
-
-		vTaskDelayUntil(&PreviousWakeTime, pdMS_TO_TICKS(100));
-
-    }
-}
-void vTareaB(void *pvParameters){
-	TickType_t PreviousWakeTime;
-	char txBuffer[80]; // Buffer local para armar el mensaje
-    UBaseType_t count = 1U;
-
-    while(1) {
-    	PreviousWakeTime = xTaskGetTickCount();
-
-		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA A EJECUTANDOSE VEZ NUMERO %ld ---\r\n", count);
-		count++;
-		usb_transmit_buffer_safe(txBuffer);
-
-		vTaskDelayUntil(&PreviousWakeTime, pdMS_TO_TICKS(100));
+    	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+    	vTaskDelay(pdMS_TO_TICKS(200));
 
     }
 }

@@ -33,7 +33,8 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-extern xQueueHandle xUSB_Rx_Queue;
+extern TaskHandle_t xTarea_Terminal_Handle;
+
 /* USER CODE END PV */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -263,18 +264,14 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  BaseType_t HigherPriorityTaskWoken = pdFALSE;
+  vTaskNotifyGiveFromISR(xTarea_Terminal_Handle, &HigherPriorityTaskWoken);
 
-  if(xUSB_Rx_Queue != NULL) {
-	  for(uint32_t i = 0; i < *Len; i++) {
 
-		  xQueueSendFromISR(xUSB_Rx_Queue, &Buf[i], &xHigherPriorityTaskWoken);
-	  }
-  }
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 
-  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  portYIELD_FROM_ISR(HigherPriorityTaskWoken);
   return (USBD_OK);
   /* USER CODE END 6 */
 }
