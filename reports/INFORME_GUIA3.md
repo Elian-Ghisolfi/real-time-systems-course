@@ -46,7 +46,7 @@ uint8_t usb_transmit_buffer_safe(const char *pcString){
 }
 ```
 
-## Desafío 1
+## Desafío 2
 
 **Preguntas**: Es correcto el funcionamiento observado? Los caracteres se muestran en el orden que se enviaron? Los mensajes por terminal están corruptos? Porque?
 
@@ -96,6 +96,72 @@ void vTareaProcesadora(void *pvParameters) {
 
             usb_transmit_buffer_safe(txBuffer);
         }
+    }
+}
+```
+
+## Desafío 3
+
+**Preguntas**: Observar la el orden en el que aparecen los distintos mensajes de A y B.
+Son equitativos? Porque? Repensar que mecanismo puede implementarse para
+intentar que siempre se de la secuencia A - B - A - B….
+
+### Análisis:
+
+```c
+uint8_t usb_transmit_buffer_safe(const char *pcString){
+	uint8_t status;
+	uint16_t len = 0U;
+
+	if(xSemaphoreTake(xUSB_Tx_Mutex, portMAX_DELAY) == pdTRUE){
+
+		while(pcString[len] != '\0') len++; // Standard de C
+		do {
+			status = CDC_Transmit_FS((uint8_t*)pcString, len);
+
+			if(status == USBD_BUSY) {
+				// Liberamos el CPU para despues volver a iterar
+
+				vTaskDelay(pdMS_TO_TICKS(1));
+			}
+		} while(status == USBD_BUSY);
+
+		// Liberamos el Mutex
+		xSemaphoreGive(xUSB_Tx_Mutex);
+	}
+	return USBD_OK;
+}
+
+void vTareaA(void *pvParameters){
+	TickType_t PreviousWakeTime;
+	char txBuffer[80]; // Buffer local para armar el mensaje
+    UBaseType_t count = 1U;
+
+    while(1) {
+    	PreviousWakeTime = xTaskGetTickCount();
+
+		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA B EJECUTÁNDOSE VEZ NUMERO %ld ---\r\n", count);
+		count++;
+		usb_transmit_buffer_safe(txBuffer);
+
+		vTaskDelayUntil(&PreviousWakeTime, pdMS_TO_TICKS(100));
+
+    }
+}
+void vTareaB(void *pvParameters){
+	TickType_t PreviousWakeTime;
+	char txBuffer[80]; // Buffer local para armar el mensaje
+    UBaseType_t count = 1U;
+
+    while(1) {
+    	PreviousWakeTime = xTaskGetTickCount();
+
+		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA A EJECUTÁNDOSE VEZ NUMERO %ld ---\r\n", count);
+		count++;
+		usb_transmit_buffer_safe(txBuffer);
+
+		vTaskDelayUntil(&PreviousWakeTime, pdMS_TO_TICKS(100));
+
     }
 }
 ```

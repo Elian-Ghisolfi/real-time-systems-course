@@ -74,7 +74,8 @@ xQueueHandle xUSB_Rx_Queue = NULL;
 void SystemClock_Config(void);
 
 uint8_t usb_transmit_buffer_safe(const char *pcString);
-void vTareaProcesadora(void *pvParameters);
+void vTareaA(void *pvParameters);
+void vTareaB(void *pvParameters);
 /* USER CODE BEGIN PFP */
 
 
@@ -120,7 +121,9 @@ int main(void)
   xUSB_Rx_Queue = xQueueCreate(MAX_STRING_LEN, sizeof (uint8_t));
   xUSB_Tx_Mutex = xSemaphoreCreateMutex();
 
-  xTaskCreate(vTareaProcesadora, "Tarea Procesadora", 1024, NULL, 1, NULL);
+  xTaskCreate(vTareaA, "Tarea A", 1024, NULL, 1, NULL);
+  xTaskCreate(vTareaB, "Tarea A", 1024, NULL, 1, NULL);
+
   /* Start scheduler */
   vTaskStartScheduler();
 
@@ -204,7 +207,7 @@ uint8_t usb_transmit_buffer_safe(const char *pcString){
 			if(status == USBD_BUSY) {
 				// Liberamos el CPU para despues volver a iterar
 
-				vTaskDelay(pdMS_TO_TICKS(1));
+				//vTaskDelay(pdMS_TO_TICKS(1));
 			}
 		} while(status == USBD_BUSY);
 
@@ -214,26 +217,36 @@ uint8_t usb_transmit_buffer_safe(const char *pcString){
 	return USBD_OK;
 }
 
-void vTareaProcesadora(void *pvParameters) {
-    char rxChar;
-    char txBuffer[80]; // Buffer local para armar el mensaje
-    UBaseType_t pendingCount; // Variable para almacenar la cantidad 'N'
+void vTareaA(void *pvParameters){
+	TickType_t PreviousWakeTime;
+	char txBuffer[80]; // Buffer local para armar el mensaje
+    UBaseType_t count = 1U;
 
     while(1) {
+    	PreviousWakeTime = xTaskGetTickCount();
 
-        if(xQueueReceive(xUSB_Rx_Queue, &rxChar, portMAX_DELAY) == pdPASS) {
+		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA B EJECUTANDOSE VEZ NUMERO %ld ---\r\n", count);
+		count++;
+		usb_transmit_buffer_safe(txBuffer);
 
-            HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
-            vTaskDelay(pdMS_TO_TICKS(50));
-            HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+		vTaskDelayUntil(&PreviousWakeTime, pdMS_TO_TICKS(100));
 
+    }
+}
+void vTareaB(void *pvParameters){
+	TickType_t PreviousWakeTime;
+	char txBuffer[80]; // Buffer local para armar el mensaje
+    UBaseType_t count = 1U;
 
-            pendingCount = uxQueueMessagesWaiting(xUSB_Rx_Queue);
+    while(1) {
+    	PreviousWakeTime = xTaskGetTickCount();
 
-            snprintf(txBuffer, sizeof(txBuffer), "Recibido:'%c' - Caracteres pendientes:%u \r\n", rxChar, (unsigned int)pendingCount);
+		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA A EJECUTANDOSE VEZ NUMERO %ld ---\r\n", count);
+		count++;
+		usb_transmit_buffer_safe(txBuffer);
 
-            usb_transmit_buffer_safe(txBuffer);
-        }
+		vTaskDelayUntil(&PreviousWakeTime, pdMS_TO_TICKS(100));
+
     }
 }
 /* USER CODE END 4 */
