@@ -1,8 +1,6 @@
-../Core/Src/main.c:98:5:main	1
-../Core/Src/main.c:165:6:SystemClock_Config	3
-../Core/Src/main.c:204:6:prvAutoReloadAlarmCallback	1
-../Core/Src/main.c:208:6:prvOneShotAlarmCallback	1
-../Core/Src/main.c:214:6:vArmingAlarmTask	8
-../Core/Src/main.c:261:6:HAL_GPIO_EXTI_Callback	3
-../Core/Src/main.c:286:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:304:6:Error_Handler	1
+../Core/Src/main.c:93:5:main	1
+../Core/Src/main.c:151:6:SystemClock_Config	3
+../Core/Src/main.c:195:9:usb_transmit_buffer_safe	4
+../Core/Src/main.c:218:6:vTareaComandos	5
+../Core/Src/main.c:275:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:293:6:Error_Handler	1

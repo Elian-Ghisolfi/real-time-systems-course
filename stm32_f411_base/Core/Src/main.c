@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "usb_device.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -29,6 +30,7 @@
 #include <stdlib.h> // Para la función rand()
 #include "timers.h"
 #include <limits.h>
+#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,11 +54,7 @@ typedef enum {
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define LED_PRE_ARMADO     0
-#define LED_SISTEMA_ARMADO 1
-
-#define BUTTON_SIGNAL           (1 << 0)
-#define ONESHOT_TIMER_SIGNAL    (1 << 1)
+#define MAX_STRING_LEN 64U
 
 /* USER CODE END PM */
 
@@ -66,23 +64,20 @@ typedef enum {
 Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 100},	{GPIOD, GPIO_PIN_13, 100},
 							{GPIOD, GPIO_PIN_14, 100}, {GPIOD, GPIO_PIN_15, 100}};
 
-//SemaphoreHandle_t xSemButton = NULL;
+SemaphoreHandle_t xUSB_Tx_Mutex = NULL;
+TaskHandle_t xTarea_Comandos_Handle;
 
-TimerHandle_t xAutoReloadAlarmTimer;
-TimerHandle_t xOneShotAlarmTimer;
-
-TaskHandle_t xArmingTaskHandle;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+
+uint8_t usb_transmit_buffer_safe(const char *pcString);
+void vTareaComandos(void *pvParameters);
+
 /* USER CODE BEGIN PFP */
 
-void prvAutoReloadAlarmCallback(TimerHandle_t xTimer);
-void prvOneShotAlarmCallback(TimerHandle_t xTimer);
-
-void vArmingAlarmTask(void *pvParameters);
 
 /* USER CODE END PFP */
 
@@ -121,22 +116,11 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
+  MX_USB_DEVICE_Init();
 
-  xAutoReloadAlarmTimer = xTimerCreate(
-		  "Armado Alarma",
-		  pdMS_TO_TICKS(100),
-		  pdTRUE,
-		  (void *)0,
-		  prvAutoReloadAlarmCallback);
+  xUSB_Tx_Mutex = xSemaphoreCreateMutex();
 
-  xOneShotAlarmTimer = xTimerCreate(
-		  "Armado Alarma",
-		  pdMS_TO_TICKS(10000),
-		  pdFALSE,
-		  (void *)0,
-		  prvOneShotAlarmCallback);
-
-  xTaskCreate(vArmingAlarmTask, "Gestion alarma", 100, NULL, 1, &xArmingTaskHandle);
+  xTaskCreate(vTareaComandos, "Tarea Com", 1024, NULL, 1, &xTarea_Comandos_Handle);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -144,7 +128,9 @@ int main(void)
   /* USER CODE END 2 */
 
   /* Init scheduler */
+
   /* Start scheduler */
+
   /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
@@ -175,10 +161,16 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 72;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLQ = 3;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -200,78 +192,75 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+uint8_t usb_transmit_buffer_safe(const char *pcString){
+	uint8_t status;
+	uint16_t len = 0U;
 
-void prvAutoReloadAlarmCallback(TimerHandle_t xTimer){
-	HAL_GPIO_TogglePin(leds_param[LED_PRE_ARMADO].GPIO_puerto, leds_param[LED_PRE_ARMADO].GPIO_pin);
-}
+	if(xSemaphoreTake(xUSB_Tx_Mutex, portMAX_DELAY) == pdTRUE){
 
-void prvOneShotAlarmCallback(TimerHandle_t xTimer){
-	xTimerStop(xAutoReloadAlarmTimer, 0);
-	xTaskNotify(xArmingTaskHandle, ONESHOT_TIMER_SIGNAL, eSetBits);
+		while(pcString[len] != '\0') len++; // Standard de C
+		do {
+			status = CDC_Transmit_FS((uint8_t*)pcString, len);
 
-}
+			if(status == USBD_BUSY) {
+				// Liberamos el CPU para despues volver a iterar
 
-void vArmingAlarmTask(void *pvParameters){
-    AlarmState_t currentState = STATE_INACTIVE;
-    uint32_t signal;
+				//vTaskDelay(pdMS_TO_TICKS(1));
+			}
+		} while(status == USBD_BUSY);
 
-    while(1){
-        xTaskNotifyWait(0, ULONG_MAX, &signal, portMAX_DELAY);
-
-        // Evaluamos QUÉ HACER dependiendo del ESTADO ACTUAL
-        switch (currentState) {
-
-            case STATE_INACTIVE:
-            case STATE_ARMED:
-            	if(signal == BUTTON_SIGNAL){
-					xTimerStart(xOneShotAlarmTimer, 0);
-					xTimerStart(xAutoReloadAlarmTimer, 0);
-
-					HAL_GPIO_WritePin(leds_param[LED_SISTEMA_ARMADO].GPIO_puerto,
-									  leds_param[LED_SISTEMA_ARMADO].GPIO_pin, GPIO_PIN_RESET);
-
-					currentState = STATE_ARMING;
-            	}
-                break;
-
-            case STATE_ARMING:
-            	// Cubrimos en la tarea los eventos posibles de BOTON o de ONE SHOT TIMER
-            	if(signal == BUTTON_SIGNAL){
-					xTimerStop(xAutoReloadAlarmTimer, 0);
-					xTimerStop(xOneShotAlarmTimer, 0);
-
-					HAL_GPIO_WritePin(leds_param[LED_PRE_ARMADO].GPIO_puerto,
-									  leds_param[LED_PRE_ARMADO].GPIO_pin, GPIO_PIN_RESET);
-
-					currentState = STATE_INACTIVE;
-            	} else if(signal == ONESHOT_TIMER_SIGNAL){
-
-					xTimerStop(xAutoReloadAlarmTimer, 0);
-					HAL_GPIO_WritePin(leds_param[LED_SISTEMA_ARMADO].GPIO_puerto,
-									  leds_param[LED_SISTEMA_ARMADO].GPIO_pin, GPIO_PIN_SET);
-
-					HAL_GPIO_WritePin(leds_param[LED_PRE_ARMADO].GPIO_puerto,
-									  leds_param[LED_PRE_ARMADO].GPIO_pin, GPIO_PIN_RESET);
-					currentState = STATE_ARMED;
-            	}
-                break;
-        }
-    }
-}
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-
-	if(GPIO_Pin == GPIO_PIN_0){
-		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-		xTaskNotifyFromISR(xArmingTaskHandle, BUTTON_SIGNAL, eSetBits, &xHigherPriorityTaskWoken);
-
-		//xSemaphoreGiveFromISR(xSemButton, &xHigherPriorityTaskWoken);
-
-		/* 5. Si xHigherPriorityTaskWoken se puso en pdTRUE, forzamos un cambio de contexto
-		* para que al salir de la interrupción entremos directo a la tarea del botón. */
-		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+		// Liberamos el Mutex
+		xSemaphoreGive(xUSB_Tx_Mutex);
 	}
+	return USBD_OK;
+}
 
+void vTareaComandos(void *pvParameters){
+
+	uint32_t comand;
+
+    while(1) {
+    	xTaskNotifyWait(0, ULONG_MAX, &comand, portMAX_DELAY);
+
+    	switch (comand) {
+			case 0x01:
+				usb_transmit_buffer_safe("[EVENTO] LED 1\r\n");
+				HAL_GPIO_TogglePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+				break;
+
+			case 0x02:
+				usb_transmit_buffer_safe("[EVENTO] LED 2\r\n");
+				HAL_GPIO_TogglePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+				break;
+
+			case 0x03:
+				usb_transmit_buffer_safe("[EVENTO] LED 3\r\n");
+				HAL_GPIO_TogglePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+				break;
+
+			case 0x04:
+				usb_transmit_buffer_safe("[EVENTO] LED 4\r\n");
+				HAL_GPIO_TogglePin(leds_param[3].GPIO_puerto, leds_param[3].GPIO_pin);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+				break;
+
+			default:
+				usb_transmit_buffer_safe("[WARNING] Comando Invalido\r\n");
+				break;
+		}
+
+    }
 }
 /* USER CODE END 4 */
 
