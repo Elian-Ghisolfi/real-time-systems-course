@@ -92,7 +92,9 @@ void vTareaProcesadora(void *pvParameters) {
 
             pendingCount = uxQueueMessagesWaiting(xUSB_Rx_Queue);
 
-            snprintf(txBuffer, sizeof(txBuffer), "Recibido:'%c' - Caracteres pendientes:%u \r\n", rxChar, (unsigned int)pendingCount);
+            snprintf(txBuffer, sizeof(txBuffer), 
+					"Recibido:'%c' - Caracteres pendientes:%u \r\n", 
+					rxChar, (unsigned int)pendingCount);
 
             usb_transmit_buffer_safe(txBuffer);
         }
@@ -140,7 +142,8 @@ void vTareaA(void *pvParameters){
     while(1) {
     	PreviousWakeTime = xTaskGetTickCount();
 
-		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA B EJECUTÁNDOSE VEZ NUMERO %ld ---\r\n", count);
+		snprintf(txBuffer, sizeof(txBuffer), 
+			"--- TAREA B EJECUTÁNDOSE VEZ NUMERO %ld ---\r\n", count);
 		count++;
 		usb_transmit_buffer_safe(txBuffer);
 
@@ -156,7 +159,8 @@ void vTareaB(void *pvParameters){
     while(1) {
     	PreviousWakeTime = xTaskGetTickCount();
 
-		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA A EJECUTÁNDOSE VEZ NUMERO %ld ---\r\n", count);
+		snprintf(txBuffer, sizeof(txBuffer), 
+			"--- TAREA A EJECUTÁNDOSE VEZ NUMERO %ld ---\r\n", count);
 		count++;
 		usb_transmit_buffer_safe(txBuffer);
 
@@ -199,7 +203,7 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 }
 ```
 
-## Desafío 4
+## Desafío 5
 
 **Funcionamiento**: Utilizar el valor de notificación (Notification Value) para transmitir simultáneamente una señal de sincronización y un dato de estado de 32 bits desde una ISR hacia una tarea.
 
@@ -250,7 +254,6 @@ void vTareaComandos(void *pvParameters){
 				usb_transmit_buffer_safe("[WARNING] Comando Invalido\r\n");
 				break;
 		}
-
     }
 }
 

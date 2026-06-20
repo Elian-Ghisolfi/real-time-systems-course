@@ -43,9 +43,11 @@ void vConsumerTask(void * pvParameters){
 
 			for (int var = 0; var < 4; ++var) {
 				if(leds[var] == 1){
-					HAL_GPIO_WritePin(pxParam[var].GPIO_puerto, pxParam[var].GPIO_pin, GPIO_PIN_SET);
+					HAL_GPIO_WritePin(pxParam[var].GPIO_puerto,
+									  pxParam[var].GPIO_pin, GPIO_PIN_SET);
 				}else{
-					HAL_GPIO_WritePin(pxParam[var].GPIO_puerto, pxParam[var].GPIO_pin, GPIO_PIN_RESET);
+					HAL_GPIO_WritePin(pxParam[var].GPIO_puerto, 
+									  pxParam[var].GPIO_pin, GPIO_PIN_RESET);
 				}
 			}
 		}
@@ -97,9 +99,11 @@ void vConsumerTask(void * pvParameters){
 		if(xQueueReceive(queue_led_pattern, &pattern_received, portMAX_DELAY) == pdPASS){
 
 			if(pattern_received.on_off == 1){
-				HAL_GPIO_WritePin(pxParam[pattern_received.Led_ID].GPIO_puerto, pxParam[pattern_received.Led_ID].GPIO_pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(pxParam[pattern_received.Led_ID].GPIO_puerto, 
+								  pxParam[pattern_received.Led_ID].GPIO_pin, GPIO_PIN_SET);
 			}else{
-				HAL_GPIO_WritePin(pxParam[pattern_received.Led_ID].GPIO_puerto, pxParam[pattern_received.Led_ID].GPIO_pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(pxParam[pattern_received.Led_ID].GPIO_puerto, 
+								  pxParam[pattern_received.Led_ID].GPIO_pin, GPIO_PIN_RESET);
 			}
 			vTaskDelay(pdMS_TO_TICKS(500));
 		}
@@ -125,9 +129,11 @@ void vConsumer_PointerTask(void * pvParameters){
     while(1){
         if(xQueueReceive(queue_led_pattern_point, &px_pattern_received, portMAX_DELAY) == pdPASS){
             if(px_pattern_received->on_off == 1){
-                HAL_GPIO_WritePin(pxParam[px_pattern_received->Led_ID].GPIO_puerto, pxParam[px_pattern_received->Led_ID].GPIO_pin, GPIO_PIN_SET);
+                HAL_GPIO_WritePin(pxParam[px_pattern_received->Led_ID].GPIO_puerto, 
+								  pxParam[px_pattern_received->Led_ID].GPIO_pin, GPIO_PIN_SET);
             }else{
-                HAL_GPIO_WritePin(pxParam[px_pattern_received->Led_ID].GPIO_puerto, pxParam[px_pattern_received->Led_ID].GPIO_pin, GPIO_PIN_RESET);
+                HAL_GPIO_WritePin(pxParam[px_pattern_received->Led_ID].GPIO_puerto, 
+								  pxParam[px_pattern_received->Led_ID].GPIO_pin, GPIO_PIN_RESET);
             }
             vTaskDelay(pdMS_TO_TICKS(500));
         }
@@ -246,10 +252,14 @@ void vPattern_Leds(void * pvParameters){
 		}
 
 		// Encender el correspondiente
-		if(led_pos == 0) HAL_GPIO_WritePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin, GPIO_PIN_SET);
-		if(led_pos == 1) HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_SET);
-		if(led_pos == 2) HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
-		if(led_pos == 3) HAL_GPIO_WritePin(leds_param[3].GPIO_puerto, leds_param[3].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 0) 
+			HAL_GPIO_WritePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 1) 
+			HAL_GPIO_WritePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 2) 
+			HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 3) 
+			HAL_GPIO_WritePin(leds_param[3].GPIO_puerto, leds_param[3].GPIO_pin, GPIO_PIN_SET);
 
 		vTaskDelayUntil(&xLastWakeTime ,led_Pattern.delay);
 	}
@@ -352,8 +362,10 @@ void vPattern_Leds(void * pvParameters){
 		}
 
 		// Encender el correspondiente
-		if(led_pos == 0) HAL_GPIO_WritePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin, GPIO_PIN_SET);
-		if(led_pos == 1) HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 0) 
+			HAL_GPIO_WritePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin, GPIO_PIN_SET);
+		if(led_pos == 1) 
+			HAL_GPIO_WritePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin, GPIO_PIN_SET);
 
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
 	}
