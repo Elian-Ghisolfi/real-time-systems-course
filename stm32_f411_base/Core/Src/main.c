@@ -65,7 +65,7 @@ Led_Param_t leds_param[4] = {{GPIOD, GPIO_PIN_12, 100},	{GPIOD, GPIO_PIN_13, 100
 							{GPIOD, GPIO_PIN_14, 100}, {GPIOD, GPIO_PIN_15, 100}};
 
 SemaphoreHandle_t xUSB_Tx_Mutex = NULL;
-xQueueHandle xUSB_Rx_Queue = NULL;
+TaskHandle_t xTarea_Comandos_Handle;
 
 
 /* USER CODE END PV */
@@ -74,8 +74,8 @@ xQueueHandle xUSB_Rx_Queue = NULL;
 void SystemClock_Config(void);
 
 uint8_t usb_transmit_buffer_safe(const char *pcString);
-void vTareaA(void *pvParameters);
-void vTareaB(void *pvParameters);
+void vTareaComandos(void *pvParameters);
+
 /* USER CODE BEGIN PFP */
 
 
@@ -118,11 +118,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
   MX_USB_DEVICE_Init();
 
-  xUSB_Rx_Queue = xQueueCreate(MAX_STRING_LEN, sizeof (uint8_t));
   xUSB_Tx_Mutex = xSemaphoreCreateMutex();
 
-  xTaskCreate(vTareaA, "Tarea A", 1024, NULL, 1, NULL);
-  xTaskCreate(vTareaB, "Tarea A", 1024, NULL, 1, NULL);
+  xTaskCreate(vTareaComandos, "Tarea Com", 1024, NULL, 1, &xTarea_Comandos_Handle);
 
   /* Start scheduler */
   vTaskStartScheduler();
@@ -217,35 +215,50 @@ uint8_t usb_transmit_buffer_safe(const char *pcString){
 	return USBD_OK;
 }
 
-void vTareaA(void *pvParameters){
-	TickType_t PreviousWakeTime;
-	char txBuffer[80]; // Buffer local para armar el mensaje
-    UBaseType_t count = 1U;
+void vTareaComandos(void *pvParameters){
+
+	uint32_t comand;
 
     while(1) {
-    	PreviousWakeTime = xTaskGetTickCount();
+    	xTaskNotifyWait(0, ULONG_MAX, &comand, portMAX_DELAY);
 
-		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA B EJECUTANDOSE VEZ NUMERO %ld ---\r\n", count);
-		count++;
-		usb_transmit_buffer_safe(txBuffer);
+    	switch (comand) {
+			case 0x01:
+				usb_transmit_buffer_safe("[EVENTO] LED 1\r\n");
+				HAL_GPIO_TogglePin(leds_param[0].GPIO_puerto, leds_param[0].GPIO_pin);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+				break;
 
-		vTaskDelayUntil(&PreviousWakeTime, pdMS_TO_TICKS(100));
+			case 0x02:
+				usb_transmit_buffer_safe("[EVENTO] LED 2\r\n");
+				HAL_GPIO_TogglePin(leds_param[1].GPIO_puerto, leds_param[1].GPIO_pin);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+				break;
 
-    }
-}
-void vTareaB(void *pvParameters){
-	TickType_t PreviousWakeTime;
-	char txBuffer[80]; // Buffer local para armar el mensaje
-    UBaseType_t count = 1U;
+			case 0x03:
+				usb_transmit_buffer_safe("[EVENTO] LED 3\r\n");
+				HAL_GPIO_TogglePin(leds_param[2].GPIO_puerto, leds_param[2].GPIO_pin);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+				break;
 
-    while(1) {
-    	PreviousWakeTime = xTaskGetTickCount();
+			case 0x04:
+				usb_transmit_buffer_safe("[EVENTO] LED 4\r\n");
+				HAL_GPIO_TogglePin(leds_param[3].GPIO_puerto, leds_param[3].GPIO_pin);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+				break;
 
-		snprintf(txBuffer, sizeof(txBuffer), "--- TAREA A EJECUTANDOSE VEZ NUMERO %ld ---\r\n", count);
-		count++;
-		usb_transmit_buffer_safe(txBuffer);
-
-		vTaskDelayUntil(&PreviousWakeTime, pdMS_TO_TICKS(100));
+			default:
+				usb_transmit_buffer_safe("[WARNING] Comando Invalido\r\n");
+				break;
+		}
 
     }
 }

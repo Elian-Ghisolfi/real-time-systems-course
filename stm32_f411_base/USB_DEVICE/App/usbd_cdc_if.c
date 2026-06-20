@@ -24,6 +24,7 @@
 /* USER CODE BEGIN INCLUDE */
 #include "FreeRTOS.h"
 #include "queue.h"
+#include "task.h"
 
 /* USER CODE END INCLUDE */
 
@@ -33,7 +34,7 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-extern xQueueHandle xUSB_Rx_Queue;
+extern TaskHandle_t xTarea_Comandos_Handle;
 /* USER CODE END PV */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -264,11 +265,15 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-  if(xUSB_Rx_Queue != NULL) {
+  uint32_t value=0u;
+  if(xTarea_Comandos_Handle != NULL) {
 	  for(uint32_t i = 0; i < *Len; i++) {
 
-		  xQueueSendFromISR(xUSB_Rx_Queue, &Buf[i], &xHigherPriorityTaskWoken);
+		  if(Buf[i] >= '1' && Buf[i] <= '4') {
+
+			value = (uint32_t)(Buf[i] - '0'); // Le restamos el 0 ASCII
+			xTaskNotifyFromISR(xTarea_Comandos_Handle, value, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
+		}
 	  }
   }
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
