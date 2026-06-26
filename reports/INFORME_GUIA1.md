@@ -337,7 +337,8 @@ para contar los tiempos asociados a una secuencia? ¿Por qué? Reescriba el ejer
 En este desafío vamos a utilizar un mutex para sincronizar dos secuencias diferentes de LEDS. Ya que es crítico el uso de los LEDS todo queda bajo el control del mutex y la otra tarea que quiera hacer uso de ellos deberá esperar el recurso. 
 
 ```c
-const Led_Param_t leds[4] = {{GPIOD, GPIO_PIN_12, 500},	{GPIOD, GPIO_PIN_13, 500}, {GPIOD, GPIO_PIN_14, 600}, {GPIOD, GPIO_PIN_15, 800}};
+const Led_Param_t leds[4] = {{GPIOD, GPIO_PIN_12, 500},	{GPIOD, GPIO_PIN_13, 500}, 
+							{GPIOD, GPIO_PIN_14, 600}, {GPIOD, GPIO_PIN_15, 800}};
 int main(){
 
   Semaphored_Mutex_LEDS = xSemaphoreCreateMutex();
@@ -478,11 +479,16 @@ Realizamos la versión con interrupción del botón ya que:
 
 - Polling:
 
-        Si la Tarea B hace un HAL_GPIO_ReadPin continuamente con un vTaskDelay(50ms) para no monopolizar la CPU, el tiempo de respuesta en el peor de los casos será de 50 ms. Si no usa delay (espera activa), tendrá una respuesta casi instantánea, pero generará Starvation (Inanición), arruinando el sistema.
+        Si la Tarea B hace un HAL_GPIO_ReadPin continuamente con un vTaskDelay(50ms) para no 
+		monopolizar la CPU, el tiempo de respuesta en el peor de los casos será de 50 ms. 
+		Si no usa delay (espera activa), tendrá una respuesta casi instantánea, 
+		pero generará Starvation (Inanición), arruinando el sistema.
 
 - Interrupción (EXTI):
 
-        El hardware (botón en este caso) interrumpe el flujo de nuestro programa y mejorando el tiempo de respuesta ya que la rutina de interrupción de ese periférico libera un semáforo binario que habilita a la tarea vigilante que realiza la lógica para la suspensión.
+        El hardware (botón en este caso) interrumpe el flujo de nuestro programa y mejorando 
+		el tiempo de respuesta ya que la rutina de interrupción de ese periférico libera un 
+		semáforo binario que habilita a la tarea vigilante que realiza la lógica para la suspensión.
 
 El resultado es ver parpadear los LEDs. Al pulsar el botón, la ejecución de la Tarea de LEDS se detendrá en seco. Si los LEDs estaban encendidos, se quedarán encendidos. Si estaban apagados, apagados. Una segunda pulsación reanudará el ciclo exactamente donde se quedó.
 
