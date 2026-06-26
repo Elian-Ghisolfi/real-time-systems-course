@@ -100,7 +100,28 @@ void vTareaProcesadora(void *pvParameters) {
         }
     }
 }
+static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
+{
+  /* USER CODE BEGIN 6 */
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+  if(xUSB_Rx_Queue != NULL) {
+	  for(uint32_t i = 0; i < *Len; i++) {
+
+		  xQueueSendFromISR(xUSB_Rx_Queue, &Buf[i], 
+		  					&xHigherPriorityTaskWoken);
+	  }
+  }
+  USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
+  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+
+  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  return (USBD_OK);
+  /* USER CODE END 6 */
+}
 ```
+No pudimos lograr la corrupción de los mensajes ya que la configuración de USb VCP envía paquetes enteros y tenia dos herramientas para arbitrar tanto la Recepción como la Transmisión. Lo que se propone es sacar el mutex `xUSB_Tx_Mutex` que arbitrar el envío y reducir la cola `xUSB_Rx_Queue` para que veamos un efecto de corrupción en los datos manejados. 
+
 
 ## Desafío 3
 
@@ -169,6 +190,8 @@ void vTareaB(void *pvParameters){
     }
 }
 ```
+
+Al utilizar una configuración de Virtual COM Port emulando un puerto serie se envían paquetes enteros sin riesgo de corrupción, pero lo que sucedió cuando no utilizamos un Mutex para arbitrar el recursos el orden NO era el esperado ya que se observaba una secuencia casi aleatoria. Luego a utilizar `xUSB_Tx_Mutex` el recurso se arbitraba y cada tarea se Bloqueaba hasta que estuviera disponible. 
 
 ## Desafío 4
 
